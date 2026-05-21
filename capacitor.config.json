@@ -9,6 +9,8 @@
     "webContentsDebuggingEnabled": false
   },
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "hostname": "duddairy.app",
+    "cleartext": false
   }
 }
