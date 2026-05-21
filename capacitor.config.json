@@ -1,0 +1,14 @@
+{
+  "appId": "com.duddairy.app",
+  "appName": "Dud Dairy",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

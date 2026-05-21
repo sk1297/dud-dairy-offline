@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Dud Dairy — License Key Generator</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0f172a;color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .card{background:#1e293b;border:1px solid #334155;border-radius:20px;padding:32px;width:100%;max-width:520px}
+  h1{font-size:20px;font-weight:900;margin-bottom:4px}
+  .sub{font-size:13px;color:#94a3b8;margin-bottom:28px}
+  label{display:block;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px}
+  input,textarea{width:100%;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:12px 14px;color:#f1f5f9;font-size:13px;font-family:monospace;outline:none;margin-bottom:18px;resize:none}
+  input:focus,textarea:focus{border-color:#10b981}
+  button.gen{width:100%;padding:14px;border-radius:10px;border:none;background:#10b981;color:#fff;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:24px}
+  button.gen:hover{background:#059669}
+  .section{background:#0f172a;border:1px solid #334155;border-radius:14px;padding:18px;margin-bottom:14px}
+  .section-title{font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+  .row{display:flex;align-items:center;gap:10px}
+  .val{flex:1;font-size:15px;font-weight:800;color:#10b981;font-family:monospace;word-break:break-all;letter-spacing:.8px}
+  .val.hash{font-size:11px;color:#94a3b8;letter-spacing:.3px}
+  .copy{flex-shrink:0;width:36px;height:36px;border-radius:8px;border:1px solid #334155;background:#1e293b;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .copy:hover{color:#10b981;border-color:#10b981}
+  .env-box{background:#0f172a;border:1px solid #334155;border-radius:10px;padding:14px;font-family:monospace;font-size:12px;color:#10b981;line-height:1.8;word-break:break-all}
+  .warn{margin-top:16px;font-size:12px;color:#f59e0b;line-height:1.6;padding:12px 14px;background:rgba(245,158,11,.08);border-radius:10px;border:1px solid rgba(245,158,11,.2)}
+  .logo{width:52px;height:52px;border-radius:16px;background:rgba(16,185,129,.15);border:2px solid rgba(16,185,129,.3);display:flex;align-items:center;justify-content:center;margin-bottom:16px;font-size:26px}
+  .divider{height:1px;background:#334155;margin:20px 0}
+  .step{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;font-size:13px;color:#94a3b8;line-height:1.5}
+  .step-num{width:22px;height:22px;border-radius:50%;background:#10b981;color:#fff;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">🥛</div>
+  <h1>License Key Generator</h1>
+  <p class="sub">Dud Dairy — Owner Tool (keep this HTML file private)</p>
+
+  <!-- Optional: custom key -->
+  <label for="custom">Custom Key (optional — leave blank to auto-generate)</label>
+  <input id="custom" placeholder="e.g.  RAVI-DAIRY-2025  or leave empty" autocomplete="off"/>
+
+  <button class="gen" onclick="generate()">
+    ⚡ Generate New License Key
+  </button>
+
+  <!-- Result -->
+  <div id="result" style="display:none">
+
+    <div class="section">
+      <div class="section-title">🔑 License Key — share this with the user</div>
+      <div class="row">
+        <div class="val" id="keyval"></div>
+        <button class="copy" onclick="copy('keyval')" title="Copy key">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        </button>
+      </div>
+      <div style="font-size:11px;color:#64748b;margin-top:6px">Share via WhatsApp / SMS. No device ID needed.</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">⚙️ .env line — paste into project before building APK</div>
+      <div class="env-box" id="envline"></div>
+      <button class="copy" style="margin-top:10px;width:auto;padding:0 14px;height:32px;font-size:12px;font-weight:700;color:#10b981;border-color:#10b981" onclick="copy('envline')">Copy .env line</button>
+      <div style="font-size:11px;color:#64748b;margin-top:8px">
+        File location: <code style="color:#94a3b8">dud-dairy-offline/.env</code>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">SHA-256 Hash (stored in APK — key not exposed)</div>
+      <div class="row">
+        <div class="val hash" id="hashval"></div>
+        <button class="copy" onclick="copy('hashval')" title="Copy hash">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        </button>
+      </div>
+      <div style="font-size:11px;color:#64748b;margin-top:6px">Even if someone decompiles the APK, they see only this hash — the original key cannot be recovered from it.</div>
+    </div>
+
+    <div class="warn">
+      ⚠️ <strong>Each APK build needs its own key.</strong><br/>
+      Build APK → generate key → share key with that client.<br/>
+      The key from one APK build will NOT work on a different build.<br/><br/>
+      Save this key securely — if you lose it, you'll need to rebuild the APK and re-share.
+    </div>
+
+    <div class="divider"></div>
+    <div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">How to use</div>
+    <div class="step"><span class="step-num">1</span>Copy the <code>.env</code> line above → paste into <code>.env</code> file in the project root.</div>
+    <div class="step"><span class="step-num">2</span>Run <code>npm run build</code> then <code>npx cap sync android</code> to build the APK with this key baked in.</div>
+    <div class="step"><span class="step-num">3</span>Send the <strong>License Key</strong> (green text above) to the user via WhatsApp/SMS.</div>
+    <div class="step"><span class="step-num">4</span>User opens app → enters key → activated. Done.</div>
+  </div>
+</div>
+
+<script>
+async function sha256(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('')
+}
+
+function randomKey() {
+  // Generates a human-friendly key like: DD-K9XP-M3QZ-2025
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'  // no confusable chars (0/O, 1/I)
+  const seg = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)))
+                      .map(b => chars[b % chars.length]).join('')
+  return `DD-${seg(4)}-${seg(4)}-${new Date().getFullYear()}`
+}
+
+async function generate() {
+  const custom = document.getElementById('custom').value.trim()
+  const key    = custom || randomKey()
+  const hash   = await sha256(key)
+
+  document.getElementById('keyval').textContent  = key
+  document.getElementById('hashval').textContent = hash
+  document.getElementById('envline').textContent = `VITE_APP_KEY_HASH=${hash}`
+  document.getElementById('result').style.display = 'block'
+  document.getElementById('result').scrollIntoView({ behavior: 'smooth' })
+}
+
+function copy(id) {
+  const text = document.getElementById(id).textContent
+  navigator.clipboard?.writeText(text)
+    .then(() => {
+      const el = document.getElementById(id)
+      const orig = el.style.color
+      el.style.color = '#10b981'
+      setTimeout(() => el.style.color = orig, 1000)
+    })
+    .catch(() => alert('Select and copy manually:\n\n' + text))
+}
+</script>
+</body>
+</html>
