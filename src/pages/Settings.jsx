@@ -209,15 +209,17 @@ export default function Settings() {
               </span>
             </div>
 
-            {/* ── Save button ── */}
-            <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleSaveProfile} disabled={saving}>
-              {saving ? <span className="spinner" /> : (
-                <>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                  बदल जतन करा
-                </>
-              )}
-            </button>
+            {/* ── Save button — sticky at bottom ── */}
+            <div style={{ position: 'sticky', bottom: 'var(--nav-h)', zIndex: 20, background: 'var(--bg)', paddingBottom: 8, paddingTop: 4 }}>
+              <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleSaveProfile} disabled={saving}>
+                {saving ? <span className="spinner" /> : (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    बदल जतन करा
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
 
@@ -277,14 +279,19 @@ export default function Settings() {
               const color = activeProd ? PRODUCT_TYPE_COLOR[activeProd.type] : 'var(--accent)'
               return (
                 <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
-                  <div style={{ padding: '13px 16px', borderBottom: '1px solid var(--border)', background: 'rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 16 }}>{activeProd?.type === 'milk_buffalo' ? '🐃' : '🐄'}</span>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-                        {activeProd?.name || 'दूध'} — नवीन दर
+                  <div style={{ padding: '13px 16px', borderBottom: '1px solid var(--border)', background: 'rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 16 }}>{activeProd?.type === 'milk_buffalo' ? '🐃' : '🐄'}</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                          {activeProd?.name || 'दूध'} — नवीन दर
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>वरील कार्ड दाबून उत्पादन बदला</div>
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>वरील कार्ड दाबून उत्पादन निवडा</div>
                     </div>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20, background: color + '22', color }}>
+                      निवडलेले ✓
+                    </span>
                   </div>
                   <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <div className="form-group" style={{ marginBottom: 0 }}>

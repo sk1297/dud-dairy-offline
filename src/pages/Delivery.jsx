@@ -8,6 +8,7 @@ import { upsertDelivery, getDeliveriesForDate } from '../services/deliveryServic
 import { getActiveCustomers, addCustomer } from '../services/customerService.js'
 import { getAreas } from '../services/areaService.js'
 import { getProducts, getCustomerProducts, addCustomerProduct, PRODUCT_TYPE_COLOR, PRODUCT_TYPE_TINT } from '../services/productService.js'
+import db from '../db/database.js'
 
 const STATUS_LABELS = { delivered: 'दिले', pending: 'बाकी', skip: 'सुट्टी', partial: 'कमी' }
 const STATUS_COLORS = { delivered: 'green', pending: 'yellow', skip: 'gray', partial: 'blue' }
@@ -82,6 +83,11 @@ function QuickAddModal({ products, areas, date, session, onClose, onSaved, show 
         <div className="modal-title">⚡ नवीन ग्राहक + आज दिले</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 11, padding: '4px 0' }}>
 
+          {/* Info hint — shown at top so user sees it before filling the form */}
+          <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 9, padding: '9px 12px', fontSize: 12, color: '#6ee7b7' }}>
+            ⚡ ग्राहक जोडला जाईल आणि आजची <strong>{session === 'morning' ? 'सकाळची' : 'संध्याकाळची'}</strong> डिलिव्हरी आपोआप "दिले" म्हणून नोंद होईल.
+          </div>
+
           {/* Name */}
           <div className="form-group">
             <label className="form-label">ग्राहकाचे नाव *</label>
@@ -150,10 +156,6 @@ function QuickAddModal({ products, areas, date, session, onClose, onSaved, show 
           </div>
           {errors.qty && <div className="form-error" style={{ marginTop: -6 }}>{errors.qty}</div>}
 
-          {/* Info hint */}
-          <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 9, padding: '9px 12px', fontSize: 12, color: '#6ee7b7' }}>
-            ⚡ ग्राहक जोडला जाईल आणि आजची <strong>{session === 'morning' ? 'सकाळची' : 'संध्याकाळची'}</strong> डिलिव्हरी आपोआप "दिले" म्हणून नोंद होईल.
-          </div>
         </div>
 
         <div className="modal-footer">
@@ -380,7 +382,7 @@ function DeliveryRow({ label, delivery, onMark, isExtra, productType }) {
         <button
           ref={btnRef}
           onClick={openMenu}
-          style={{ width: 36, height: 44, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text2)', flexShrink: 0 }}
+          style={{ width: 44, height: 44, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text2)', flexShrink: 0 }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
             <circle cx="12" cy="5"  r="1.2" fill="currentColor" stroke="none"/>
@@ -461,10 +463,17 @@ export default function Delivery() {
       }
       setDeliveries(map)
 
+      // Batch load all extra subscriptions in one query (avoids N+1)
       const subsMap = {}
-      for (const c of custs) {
-        const subs = await getCustomerProducts(c.id)
-        if (subs.length > 0) subsMap[c.id] = subs
+      const [allSubs, allProducts] = await Promise.all([
+        db.query('SELECT * FROM customer_products'),
+        db.query('SELECT * FROM products'),
+      ])
+      const productById = {}
+      for (const p of allProducts) productById[p.id] = p
+      for (const s of allSubs) {
+        if (!subsMap[s.customer_id]) subsMap[s.customer_id] = []
+        subsMap[s.customer_id].push({ ...s, product: productById[s.product_id] })
       }
       setCustExtraSubs(subsMap)
     } finally {

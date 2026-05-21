@@ -101,7 +101,14 @@ export default function Customers() {
     setModal('edit')
   }
 
-  const openDelete = (c) => { setSelected(c); setModal('delete') }
+  const [deleteBillCount, setDeleteBillCount] = useState(0)
+
+  const openDelete = async (c) => {
+    setSelected(c)
+    const bills = await db.query('SELECT id FROM monthly_bills WHERE customer_id = ?', [c.id])
+    setDeleteBillCount(bills.length)
+    setModal('delete')
+  }
 
   const validate = () => {
     const e = {}
@@ -629,6 +636,12 @@ export default function Customers() {
         <p className="confirm-msg">
           <strong style={{ color: 'var(--text)' }}>{selected?.name}</strong> हा ग्राहक आणि त्याची सर्व डिलिव्हरी नोंद कायमची हटेल.
         </p>
+        {deleteBillCount > 0 && (
+          <div style={{ marginTop: 10, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '9px 12px', fontSize: 12, color: 'var(--red)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
+            <span>या ग्राहकाची <strong>{deleteBillCount} बिले</strong> आणि संबंधित पैसे जमा नोंदी पण हटतील.</span>
+          </div>
+        )}
       </Modal>
     </div>
   )

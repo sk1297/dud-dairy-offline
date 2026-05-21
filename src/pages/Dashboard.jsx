@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { formatCurrency, todayStr } from '../utils.js'
 import { PRODUCT_TYPE_COLOR, PRODUCT_TYPE_TINT } from '../services/productService.js'
+import usePullToRefresh from '../hooks/usePullToRefresh.jsx'
 import db from '../db/database.js'
 
 function useCountUp(target, duration = 900) {
@@ -35,6 +36,7 @@ export default function Dashboard() {
   const [mounted, setMounted] = useState(false)
   const [now, setNow] = useState(new Date())
   const [dairyName, setDairyName] = useState('दूध डेअरी')
+  const { containerRef: dashRef, indicator: dashRefreshIndicator } = usePullToRefresh(load)
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60000)
@@ -114,7 +116,7 @@ export default function Dashboard() {
           }
         }),
       ]
-        .sort(() => -1)  // keep deliveries first, payments after
+        .sort((a, b) => (b.type === 'delivery' ? 0 : -1) - (a.type === 'delivery' ? 0 : -1))  // deliveries first
         .slice(0, 6)
 
       setData({ customersServed, totalCustomers: activeCustomers.length, paymentsToday, totalOutstanding })
@@ -162,7 +164,7 @@ export default function Dashboard() {
     },
     {
       label: 'पैसे जमा', sub: 'Payment नोंद',
-      color: '#f59e0b', tint: 'rgba(245,158,11,0.12)', path: '/bills',
+      color: '#f59e0b', tint: 'rgba(245,158,11,0.12)', path: '/bills', state: { openPayTab: true },
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
           <rect x="2" y="6" width="20" height="12" rx="2"/>
@@ -218,23 +220,11 @@ export default function Dashboard() {
             <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>{dateStr}</div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <div style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 700, letterSpacing: 0.3 }}>{timeStr}</div>
-          <button
-            onClick={logout}
-            title="लॉगआउट"
-            style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text2)' }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
-          </button>
-        </div>
+        <div style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 700, letterSpacing: 0.3, flexShrink: 0 }}>{timeStr}</div>
       </div>
 
-      <div style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div ref={dashRef} style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', gap: 14, position: 'relative', overflowY: 'auto' }}>
+        {dashRefreshIndicator}
 
         {/* ── Hero Card ──────────────────────────────────────────────────────── */}
         <div
@@ -326,7 +316,7 @@ export default function Dashboard() {
               <button
                 key={i}
                 className="quick-action-btn"
-                onClick={() => navigate(qa.path)}
+                onClick={() => navigate(qa.path, qa.state ? { state: qa.state } : undefined)}
                 style={{
                   opacity: mounted ? 1 : 0,
                   transform: mounted ? 'none' : 'translateY(10px)',

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { useLocation } from 'react-router-dom'
 import Header from '../components/Header.jsx'
 import Modal from '../components/Modal.jsx'
 import TextInput from '../components/TextInput.jsx'
@@ -16,7 +17,8 @@ const MONTH_NAMES_MR = ['जानेवारी','फेब्रुवार�
 
 export default function Bills() {
   const { show } = useToast()
-  const [tab, setTab]             = useState(0)
+  const location = useLocation()
+  const [tab, setTab]             = useState(() => location.state?.openPayTab ? 1 : 0)
   const [bills, setBills]         = useState([])
   const [customers, setCustomers] = useState([])
   const [payments, setPayments]   = useState([])

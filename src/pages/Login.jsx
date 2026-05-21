@@ -168,13 +168,15 @@ export default function Login() {
           </button>
         </form>
 
-        {/* Default credentials hint */}
-        <div className="lp-hint-box">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}>
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          <span>डिफॉल्ट: <strong>9999999999</strong> / PIN <strong>1234</strong></span>
-        </div>
+        {/* Default credentials hint — shown only in dev */}
+        {import.meta.env.DEV && (
+          <div className="lp-hint-box">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}>
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span>डिफॉल्ट: <strong>9999999999</strong> / PIN <strong>1234</strong></span>
+          </div>
+        )}
 
         <div className="lp-footer">
           <span className="lp-footer-dot" />
