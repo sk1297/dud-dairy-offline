@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header.jsx'
+import TextInput from '../components/TextInput.jsx'
 import Modal from '../components/Modal.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import db from '../db/database.js'
@@ -244,7 +245,7 @@ export default function Customers() {
         {/* Search */}
         <div className="search-bar">
           <svg className="search-bar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input placeholder="नाव किंवा मोबाईल शोधा..." value={search} onChange={e => setSearch(e.target.value)} />
+          <TextInput placeholder="नाव किंवा मोबाईल शोधा..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
 
         {/* Summary strip */}
@@ -437,7 +438,7 @@ export default function Customers() {
           {/* Name */}
           <div className="form-group">
             <label className="form-label">नाव *</label>
-            <input className={`form-input${errors.name ? ' error' : ''}`} placeholder="ग्राहकाचे पूर्ण नाव" {...f('name')} />
+            <TextInput className={`form-input${errors.name ? ' error' : ''}`} placeholder="ग्राहकाचे पूर्ण नाव" {...f('name')} />
             {errors.name && <div className="form-error">{errors.name}</div>}
           </div>
 
@@ -451,7 +452,7 @@ export default function Customers() {
           {/* Address */}
           <div className="form-group">
             <label className="form-label">पत्ता</label>
-            <input className="form-input" placeholder="घराचा पत्ता" {...f('address')} />
+            <TextInput className="form-input" placeholder="घराचा पत्ता" {...f('address')} />
           </div>
 
           {/* Area */}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import Header from '../components/Header.jsx'
+import TextInput from '../components/TextInput.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import db from '../db/database.js'
 import { PRODUCT_TYPE_COLOR, PRODUCT_TYPE_TINT } from '../services/productService.js'
@@ -148,7 +149,7 @@ export default function Settings() {
               <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">डेअरीचे नाव</label>
-                  <input
+                  <TextInput
                     className="form-input"
                     value={settings.dairy_name}
                     onChange={e => setSettings(p => ({ ...p, dairy_name: e.target.value }))}
@@ -176,7 +177,7 @@ export default function Settings() {
               <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">मालकाचे नाव</label>
-                  <input
+                  <TextInput
                     className="form-input"
                     value={settings.owner_name}
                     onChange={e => setSettings(p => ({ ...p, owner_name: e.target.value }))}
@@ -298,7 +299,7 @@ export default function Settings() {
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label">कारण / नोंद (ऐच्छिक)</label>
-                      <input className="form-input" value={rateNotes} onChange={e => setRateNotes(e.target.value)} placeholder="उदा. हंगामी बदल, मागणी वाढ..." />
+                      <TextInput className="form-input" value={rateNotes} onChange={e => setRateNotes(e.target.value)} placeholder="उदा. हंगामी बदल, मागणी वाढ..." />
                     </div>
                     <button className="btn btn-primary" style={{ width: '100%', marginTop: 2, background: color, borderColor: color }} onClick={handleAddRate}>
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>

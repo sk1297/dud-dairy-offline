@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import Header from '../components/Header.jsx'
 import Modal from '../components/Modal.jsx'
+import TextInput from '../components/TextInput.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import { formatCurrency, getMonthYear, todayStr } from '../utils.js'
 import { getBills, generateBill, lockBill, deleteBill, getBillItems } from '../services/billService.js'
@@ -452,7 +453,7 @@ export default function Bills() {
           </div>
           <div className="form-group">
             <label className="form-label">टीप (ऐच्छिक)</label>
-            <input className="form-input" placeholder="नोट्स" {...pf('notes')} />
+            <TextInput className="form-input" placeholder="नोट्स" {...pf('notes')} />
           </div>
         </div>
       </Modal>

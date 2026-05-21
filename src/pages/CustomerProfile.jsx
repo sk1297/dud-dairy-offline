@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Header from '../components/Header.jsx'
 import Modal from '../components/Modal.jsx'
+import TextInput from '../components/TextInput.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import { formatCurrency, todayStr } from '../utils.js'
 import db from '../db/database.js'
@@ -879,7 +880,7 @@ export default function CustomerProfile() {
           </div>
           <div className="form-group">
             <label className="form-label">टीप (Optional)</label>
-            <input className="form-input" placeholder="नोट्स" value={payForm.notes} onChange={e => setPayForm(p => ({ ...p, notes: e.target.value }))} />
+            <TextInput className="form-input" placeholder="नोट्स" value={payForm.notes} onChange={e => setPayForm(p => ({ ...p, notes: e.target.value }))} />
           </div>
         </div>
       </Modal>

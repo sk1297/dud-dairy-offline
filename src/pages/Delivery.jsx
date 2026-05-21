@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import Header from '../components/Header.jsx'
+import TextInput from '../components/TextInput.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import { todayStr } from '../utils.js'
 import { upsertDelivery, getDeliveriesForDate } from '../services/deliveryService.js'
@@ -83,7 +84,7 @@ function QuickAddModal({ products, areas, date, session, onClose, onSaved, show 
           {/* Name */}
           <div className="form-group">
             <label className="form-label">ग्राहकाचे नाव *</label>
-            <input className={`form-input${errors.name ? ' error' : ''}`} placeholder="उदा. रमेश पाटील"
+            <TextInput className={`form-input${errors.name ? ' error' : ''}`} placeholder="उदा. रमेश पाटील"
               value={form.name} onChange={e => { setForm(f=>({...f,name:e.target.value})); setErrors(p=>({...p,name:''})) }} autoFocus />
             {errors.name && <div className="form-error">{errors.name}</div>}
           </div>
