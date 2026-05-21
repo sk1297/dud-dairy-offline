@@ -21,11 +21,11 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.0",
-    "sql.js": "^1.14.1",
-    "vite-plugin-static-copy": "^4.1.0"
+    "sql.js": "^1.14.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
-    "vite": "^5.1.4"
+    "vite": "^5.1.4",
+    "vite-plugin-static-copy": "^1.0.0"
   }
 }
