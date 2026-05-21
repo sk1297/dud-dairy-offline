@@ -170,8 +170,9 @@ function QuickAddModal({ products, areas, date, session, onClose, onSaved, show 
 
 // ── ExtraProduct: add a one-time or permanent extra product from delivery page ─
 function ExtraProductModal({ customer, products, session, date, onClose, onSaved, show }) {
-  const otherProds = products.filter(p => p.type === 'other')
-  const [productId, setProductId] = useState(otherProds[0]?.id ? String(otherProds[0].id) : '')
+  // All products EXCEPT customer's primary — so cow+buffalo can both be subscribed
+  const availableProds = products.filter(p => p.id !== customer.product_id)
+  const [productId, setProductId] = useState(availableProds[0]?.id ? String(availableProds[0].id) : '')
   const [qty,       setQty]       = useState('')
   const [permanent, setPermanent] = useState(false)
   const [saving,    setSaving]    = useState(false)
@@ -217,24 +218,30 @@ function ExtraProductModal({ customer, products, session, date, onClose, onSaved
           {/* Product selector */}
           <div className="form-group">
             <label className="form-label">उत्पादन *</label>
-            {otherProds.length === 0 ? (
+            {availableProds.length === 0 ? (
               <div style={{ fontSize: 13, color: 'var(--text2)', padding: '10px 0' }}>
-                कोणतेही इतर उत्पादन उपलब्ध नाही. आधी Settings मध्ये जोडा.
+                कोणतेही अतिरिक्त उत्पादन उपलब्ध नाही.
               </div>
             ) : (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {otherProds.map(p => {
-                  const sel = parseInt(productId) === p.id
+                {availableProds.map(p => {
+                  const sel   = parseInt(productId) === p.id
+                  const color = PRODUCT_TYPE_COLOR[p.type] || 'var(--accent)'
+                  const tint  = PRODUCT_TYPE_TINT[p.type]  || 'rgba(16,185,129,0.12)'
+                  const emoji = p.type === 'milk_buffalo' ? '🐃' : p.type === 'milk_cow' ? '🐄' : '📦'
                   return (
                     <button key={p.id} type="button" onClick={() => setProductId(String(p.id))}
                       style={{
-                        padding: '8px 14px', borderRadius: 10, border: `1.5px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
-                        background: sel ? 'rgba(16,185,129,0.12)' : 'var(--surface2)',
-                        color: sel ? 'var(--accent)' : 'var(--text)', fontWeight: sel ? 700 : 500,
+                        padding: '8px 14px', borderRadius: 10,
+                        border: `1.5px solid ${sel ? color : 'var(--border)'}`,
+                        background: sel ? tint : 'var(--surface2)',
+                        color: sel ? color : 'var(--text)', fontWeight: sel ? 700 : 500,
                         fontSize: 13, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 6,
                       }}>
-                      {p.name}
-                      {p.default_rate ? <span style={{ fontSize: 11, opacity: 0.7 }}> ₹{p.default_rate}/{p.unit}</span> : ''}
+                      <span>{emoji}</span>
+                      <span>{p.name}</span>
+                      {p.default_rate ? <span style={{ fontSize: 11, opacity: 0.7 }}>₹{p.default_rate}/{p.unit}</span> : ''}
                     </button>
                   )
                 })}
@@ -283,7 +290,7 @@ function ExtraProductModal({ customer, products, session, date, onClose, onSaved
 
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>रद्द</button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving || otherProds.length === 0}>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving || availableProds.length === 0}>
             {saving ? <span className="spinner" /> : (
               <>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -298,7 +305,7 @@ function ExtraProductModal({ customer, products, session, date, onClose, onSaved
 }
 
 // ── DeliveryRow: big tap-to-deliver + overflow for other options ─────────────
-function DeliveryRow({ label, delivery, onMark, isExtra }) {
+function DeliveryRow({ label, delivery, onMark, isExtra, productType }) {
   const [showOptions, setShowOptions] = useState(false)
   const [dropPos,     setDropPos]     = useState({ top: 0, right: 0 })
   const btnRef = React.useRef(null)
@@ -345,8 +352,13 @@ function DeliveryRow({ label, delivery, onMark, isExtra }) {
           </div>
           {/* Label + status */}
           <div style={{ flex: 1, textAlign: 'left' }}>
-            <div style={{ fontSize: 12, color: isExtra ? '#06b6d4' : 'var(--text)', fontWeight: 600 }}>
-              {isExtra && '📦 '}{label}
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 5 }}>
+              {isExtra && (
+                <span style={{ fontSize: 13 }}>
+                  {productType === 'milk_buffalo' ? '🐃' : productType === 'milk_cow' ? '🐄' : '📦'}
+                </span>
+              )}
+              {label}
             </div>
             <div style={{ fontSize: 11, color: sty.color, fontWeight: 700, marginTop: 1 }}>
               {status ? `${STATUS_LABELS[status]}${delivery?.qty > 0 && status !== 'delivered' ? ` — ${delivery.qty}` : ''}` : 'नोंद नाही — टॅप करा'}
@@ -522,7 +534,18 @@ export default function Delivery() {
     const key = `${c.id}_${c.product_id || 1}_${session}`
     const d = deliveries[key]
     if (d?.status === 'delivered' || d?.status === 'partial') {
-      s.delivered++; s.liters += (d.qty || 0)
+      s.delivered++
+      const prod = getProductById(c.product_id)
+      if (!prod || prod.unit === 'L') s.liters += (d.qty || 0)
+    }
+    // Also count extra milk product deliveries
+    for (const sub of (custExtraSubs[c.id] || [])) {
+      const subKey = `${c.id}_${sub.product_id}_${session}`
+      const sd = deliveries[subKey]
+      if (sd?.status === 'delivered' || sd?.status === 'partial') {
+        const subProd = getProductById(sub.product_id)
+        if (!subProd || subProd.unit === 'L') s.liters += (sd.qty || 0)
+      }
     }
     return s
   }, { delivered: 0, liters: 0 })
@@ -680,6 +703,7 @@ export default function Delivery() {
                     label={`${prod?.name || '—'} — ${subQty}${prod?.unit || 'kg'}`}
                     delivery={subDelivery}
                     isExtra
+                    productType={prod?.type}
                     onMark={(status) => {
                       if (status === 'partial') {
                         setPartialModal({ customer: c, product: prod, defaultQty: subQty })

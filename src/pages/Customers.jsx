@@ -60,8 +60,8 @@ export default function Customers() {
 
   // Milk products only (for primary product selector)
   const milkProducts = products.filter(p => p.type === 'milk_buffalo' || p.type === 'milk_cow')
-  // Other (non-milk) products for extra subs
-  const otherProducts = products.filter(p => p.type === 'other')
+  // All products EXCEPT the currently selected primary — so cow+buffalo can both be subscribed
+  const extraProducts = products.filter(p => p.id !== parseInt(form.product_id || '0'))
 
   const filtered = customers.filter(c => {
     const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase()) || (c.mobile && c.mobile.includes(search))
@@ -568,7 +568,10 @@ export default function Customers() {
                   <select className="form-input" value={newExtraSub.product_id}
                     onChange={e => handleExtraProductChange(e.target.value)}>
                     <option value="">उत्पादन निवडा</option>
-                    {otherProducts.map(p => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
+                    {extraProducts.map(p => {
+                      const emoji = p.type === 'milk_buffalo' ? '🐃 ' : p.type === 'milk_cow' ? '🐄 ' : ''
+                      return <option key={p.id} value={p.id}>{emoji}{p.name} ({p.unit})</option>
+                    })}
                   </select>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
