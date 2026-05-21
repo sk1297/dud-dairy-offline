@@ -14,7 +14,7 @@ let _lastInsertId = 0
 const WEB_KEY = 'duddairy_sqljs'
 
 function webRun(sql, params = []) {
-  _sqljs.run(sql, params)
+  _sqljs.run(sql, params.map(v => v === undefined ? null : v))
   _lastInsertId = _sqljs.exec('SELECT last_insert_rowid()')[0]?.values[0][0] ?? 0
   _saveWeb()
 }
@@ -463,7 +463,7 @@ export async function initDB() {
   if (!IS_NATIVE) {
     // Web / dev mode: use sql.js directly (no jeep-sqlite, no WASM version mismatch)
     await _initWeb()
-    _sqljs.run(DDL)
+    _sqljs.exec(DDL)   // exec() runs multiple statements; run() only runs one
     await seedIfEmpty()
     return
   }
