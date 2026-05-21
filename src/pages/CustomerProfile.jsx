@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import Header from '../components/Header.jsx'
 import Modal from '../components/Modal.jsx'
 import TextInput from '../components/TextInput.jsx'
+import BottomPicker from '../components/BottomPicker.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import { formatCurrency, todayStr } from '../utils.js'
 import db from '../db/database.js'
@@ -325,8 +326,9 @@ export default function CustomerProfile() {
 
   // Generate bill modal
   const now = new Date()
-  const [genModal,  setGenModal]  = useState(false)
-  const [genMonth,  setGenMonth]  = useState(now.getMonth() + 1)
+  const [genModal,        setGenModal]        = useState(false)
+  const [genMonth,        setGenMonth]        = useState(now.getMonth() + 1)
+  const [deleteBillId,    setDeleteBillId]    = useState(null)  // confirm before delete
   const [genYear,   setGenYear]   = useState(now.getFullYear())
   const [genning,   setGenning]   = useState(false)
 
@@ -405,10 +407,11 @@ export default function CustomerProfile() {
     load()
   }
 
-  const handleDeleteBill = async (id) => {
-    await deleteBill(id)
+  const handleDeleteBill = async () => {
+    await deleteBill(deleteBillId)
     show('बिल हटवले', 'success')
-    if (expandedBill?.id === id) setExpandedBill(null)
+    if (expandedBill?.id === deleteBillId) setExpandedBill(null)
+    setDeleteBillId(null)
     load()
   }
 
@@ -677,7 +680,7 @@ export default function CustomerProfile() {
                             <button
                               className="btn btn-ghost btn-sm"
                               style={{ color: 'var(--red)', borderColor: 'rgba(239,68,68,0.3)', padding: '6px 14px', flexShrink: 0 }}
-                              onClick={() => handleDeleteBill(bill.id)}
+                              onClick={() => setDeleteBillId(bill.id)}
                             >
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
                             </button>
@@ -869,9 +872,21 @@ export default function CustomerProfile() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div className="form-group">
               <label className="form-label">पद्धत</label>
-              <select className="form-input" value={payForm.mode} onChange={e => setPayForm(p => ({ ...p, mode: e.target.value }))}>
-                {Object.entries(PAYMENT_MODES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+                {Object.entries(PAYMENT_MODES).map(([k,v]) => {
+                  const icons = { cash:'💵', upi:'📲', bank:'🏦', cheque:'📝' }
+                  const sel = payForm.mode === k
+                  return (
+                    <button key={k} type="button" onClick={() => setPayForm(p=>({...p,mode:k}))}
+                      style={{ padding:'8px 6px', borderRadius:10, border:`1.5px solid ${sel?'var(--accent)':'var(--border)'}`,
+                        background: sel?'rgba(16,185,129,0.15)':'var(--surface2)',
+                        color: sel?'var(--accent)':'var(--text2)', fontWeight: sel?700:500,
+                        fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>
+                      {icons[k]} {v}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
             <div className="form-group">
               <label className="form-label">तारीख</label>
@@ -903,20 +918,37 @@ export default function CustomerProfile() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div className="form-group">
               <label className="form-label">महिना</label>
-              <select className="form-input" value={genMonth} onChange={e => setGenMonth(parseInt(e.target.value))}>
-                {MONTH_NAMES_MR.map((name, i) => <option key={i+1} value={i+1}>{name}</option>)}
-              </select>
+              <BottomPicker
+                className="form-input"
+                options={MONTH_NAMES_MR.map((name, i) => ({ label: name, value: i + 1 }))}
+                value={genMonth}
+                onChange={val => setGenMonth(parseInt(val))}
+              />
             </div>
             <div className="form-group">
               <label className="form-label">वर्ष</label>
-              <select className="form-input" value={genYear} onChange={e => setGenYear(parseInt(e.target.value))}>
-                {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
+              <BottomPicker
+                className="form-input"
+                options={[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map(y => ({ label: String(y), value: y }))}
+                value={genYear}
+                onChange={val => setGenYear(parseInt(val))}
+              />
             </div>
           </div>
           <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: '#6ee7b7' }}>
             ⚡ त्या महिन्यातील सर्व डिलिव्हरी नोंदींवर बिल तयार होईल
           </div>
+        </div>
+      </Modal>
+
+      {/* ── Delete Bill Confirm ── */}
+      <Modal isOpen={!!deleteBillId} onClose={() => setDeleteBillId(null)} title="बिल हटवायचे?">
+        <p style={{ color: 'var(--text2)', fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>
+          हे बिल कायमचे हटवले जाईल. ही क्रिया पूर्ववत करता येणार नाही.
+        </p>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setDeleteBillId(null)}>रद्द करा</button>
+          <button className="btn btn-danger" style={{ flex: 1 }} onClick={handleDeleteBill}>हो, हटवा</button>
         </div>
       </Modal>
     </div>

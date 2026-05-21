@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header.jsx'
 import TextInput from '../components/TextInput.jsx'
 import Modal from '../components/Modal.jsx'
+import BottomPicker from '../components/BottomPicker.jsx'
+import usePullToRefresh from '../hooks/usePullToRefresh.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import db from '../db/database.js'
 import { getAreas } from '../services/areaService.js'
@@ -58,6 +60,8 @@ export default function Customers() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  const { containerRef: custListRef, indicator: custRefreshIndicator } = usePullToRefresh(load)
 
   // Milk products only (for primary product selector)
   const milkProducts = products.filter(p => p.type === 'milk_buffalo' || p.type === 'milk_cow')
@@ -279,7 +283,8 @@ export default function Customers() {
       </div>
 
       {/* Customer List */}
-      <div style={{ flex: 1, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div ref={custListRef} style={{ flex: 1, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {custRefreshIndicator}
         {filtered.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">
@@ -458,10 +463,13 @@ export default function Customers() {
           {/* Area */}
           <div className="form-group">
             <label className="form-label">भाग / क्षेत्र</label>
-            <select className="form-input" {...f('area_id')}>
-              <option value="">भाग निवडा</option>
-              {areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
+            <BottomPicker
+              className="form-input"
+              options={[{ label:'भाग नाही', value:'' }, ...areas.map(a=>({ label:a.name, value:String(a.id) }))]}
+              value={form.area_id}
+              onChange={val=>{ setForm(p=>({...p,area_id:val})); setErrors(p=>({...p,area_id:''})) }}
+              placeholder="भाग निवडा"
+            />
           </div>
 
           {/* Primary Product — milk type */}
@@ -515,11 +523,16 @@ export default function Customers() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <div className="form-group">
               <label className="form-label">स्थिती</label>
-              <select className="form-input" {...f('status')}>
-                <option value="active">सक्रिय</option>
-                <option value="paused">थांबले</option>
-                <option value="stopped">बंद</option>
-              </select>
+              <BottomPicker
+                className="form-input"
+                options={[
+                  { label:'सक्रिय', value:'active' },
+                  { label:'थांबले', value:'paused' },
+                  { label:'बंद', value:'stopped' },
+                ]}
+                value={form.status}
+                onChange={val=>{ setForm(p=>({...p,status:val})); setErrors(p=>({...p,status:''})) }}
+              />
             </div>
             <div className="form-group">
               <label className="form-label">सुरुवात तारीख</label>
@@ -566,14 +579,16 @@ export default function Customers() {
               <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, border: '1px solid var(--border)' }}>
                 <div className="form-group" style={{ marginBottom: 8 }}>
                   <label className="form-label">उत्पादन</label>
-                  <select className="form-input" value={newExtraSub.product_id}
-                    onChange={e => handleExtraProductChange(e.target.value)}>
-                    <option value="">उत्पादन निवडा</option>
-                    {extraProducts.map(p => {
+                  <BottomPicker
+                    className="form-input"
+                    options={extraProducts.map(p => {
                       const emoji = p.type === 'milk_buffalo' ? '🐃 ' : p.type === 'milk_cow' ? '🐄 ' : ''
-                      return <option key={p.id} value={p.id}>{emoji}{p.name} ({p.unit})</option>
+                      return { label:`${emoji}${p.name} (${p.unit})`, value:String(p.id) }
                     })}
-                  </select>
+                    value={newExtraSub.product_id}
+                    onChange={val=>handleExtraProductChange(val)}
+                    placeholder="उत्पादन निवडा"
+                  />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
                   <div>

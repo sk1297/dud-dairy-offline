@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header.jsx'
+import BottomPicker from '../components/BottomPicker.jsx'
+import usePullToRefresh from '../hooks/usePullToRefresh.jsx'
 import { formatCurrency, getMonthYear, todayStr } from '../utils.js'
 import db from '../db/database.js'
 
@@ -234,6 +236,8 @@ export default function Reports() {
 
   useEffect(() => { load() }, [load])
 
+  const { containerRef: reportsListRef, indicator: reportsRefreshIndicator } = usePullToRefresh(load)
+
   // ── render ─────────────────────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'var(--nav-h)' }}>
@@ -249,7 +253,8 @@ export default function Reports() {
 
       {loading
         ? <div className="loading"><span className="spinner" /> लोड होत आहे...</div>
-        : <div style={{ flex: 1, padding: '12px 16px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        : <div ref={reportsListRef} style={{ flex: 1, padding: '12px 16px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {reportsRefreshIndicator}
 
           {/* ══════════════════════════════ TAB 0 — TODAY ══════════════════════════════ */}
           {tab === 0 && daily && (
@@ -335,12 +340,20 @@ export default function Reports() {
             <>
               {/* Month selector */}
               <div style={{ display: 'flex', gap: 8 }}>
-                <select className="form-input" style={{ flex: 1 }} value={selMonth} onChange={e => setSelMonth(parseInt(e.target.value))}>
-                  {MR_MONTHS.map((name, i) => <option key={i+1} value={i+1}>{name}</option>)}
-                </select>
-                <select className="form-input" style={{ width: 90 }} value={selYear} onChange={e => setSelYear(parseInt(e.target.value))}>
-                  {[year-1, year, year+1].map(y => <option key={y} value={y}>{y}</option>)}
-                </select>
+                <BottomPicker
+                  className="form-input"
+                  style={{ flex: 1 }}
+                  options={MR_MONTHS.map((name, i) => ({ label: name, value: i + 1 }))}
+                  value={selMonth}
+                  onChange={val => setSelMonth(parseInt(val))}
+                />
+                <BottomPicker
+                  className="form-input"
+                  style={{ width: 90 }}
+                  options={[year-1, year, year+1].map(y => ({ label: String(y), value: y }))}
+                  value={selYear}
+                  onChange={val => setSelYear(parseInt(val))}
+                />
               </div>
 
               {monthly && (

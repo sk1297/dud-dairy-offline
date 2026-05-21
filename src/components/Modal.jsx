@@ -1,6 +1,9 @@
 import React, { useEffect } from 'react'
+import { App } from '@capacitor/app'
+import { Capacitor } from '@capacitor/core'
 
 export default function Modal({ isOpen, onClose, title, children, footer }) {
+  // Lock body scroll when open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
@@ -9,6 +12,13 @@ export default function Modal({ isOpen, onClose, title, children, footer }) {
     }
     return () => { document.body.style.overflow = '' }
   }, [isOpen])
+
+  // Android hardware back button closes the modal
+  useEffect(() => {
+    if (!isOpen || Capacitor.getPlatform() === 'web') return
+    const listener = App.addListener('backButton', () => onClose())
+    return () => { listener.then(h => h.remove()) }
+  }, [isOpen, onClose])
 
   if (!isOpen) return null
 

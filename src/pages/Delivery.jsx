@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import Header from '../components/Header.jsx'
 import TextInput from '../components/TextInput.jsx'
+import BottomPicker from '../components/BottomPicker.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import { todayStr } from '../utils.js'
 import { upsertDelivery, getDeliveriesForDate } from '../services/deliveryService.js'
@@ -98,10 +99,13 @@ function QuickAddModal({ products, areas, date, session, onClose, onSaved, show 
             </div>
             <div className="form-group">
               <label className="form-label">भाग</label>
-              <select className="form-input" value={form.area_id} onChange={e => setForm(f=>({...f,area_id:e.target.value}))}>
-                <option value="">निवडा</option>
-                {areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
+              <BottomPicker
+                className="form-input"
+                options={[{ label:'निवडा', value:'' }, ...areas.map(a=>({ label:a.name, value:String(a.id) }))]}
+                value={form.area_id}
+                onChange={val=>setForm(f=>({...f,area_id:val}))}
+                placeholder="निवडा"
+              />
             </div>
           </div>
 

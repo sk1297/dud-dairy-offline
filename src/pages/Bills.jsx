@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react'
 import Header from '../components/Header.jsx'
 import Modal from '../components/Modal.jsx'
 import TextInput from '../components/TextInput.jsx'
+import BottomPicker from '../components/BottomPicker.jsx'
+import usePullToRefresh from '../hooks/usePullToRefresh.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import { formatCurrency, getMonthYear, todayStr } from '../utils.js'
 import { getBills, generateBill, lockBill, deleteBill, getBillItems } from '../services/billService.js'
@@ -53,6 +55,8 @@ export default function Bills() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  const { containerRef: billsListRef, indicator: billsRefreshIndicator } = usePullToRefresh(load)
 
   const monthBills = bills.filter(b => b.month === selMonth && b.year === selYear)
 
@@ -162,18 +166,25 @@ export default function Bills() {
 
       {/* ── Bills Tab ── */}
       {tab===0 && (
-        <div style={{ flex:1, padding:'14px 16px 16px', display:'flex', flexDirection:'column', gap:12 }}>
+        <div ref={billsListRef} style={{ flex:1, padding:'14px 16px 16px', display:'flex', flexDirection:'column', gap:12 }}>
+          {billsRefreshIndicator}
 
           {/* Month selector row */}
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-            <select className="form-input" style={{ flex:1 }} value={selMonth} onChange={e=>setSelMonth(parseInt(e.target.value))}>
-              {Array.from({length:12},(_,i)=>i+1).map(m=>(
-                <option key={m} value={m}>{MONTH_NAMES_MR[m-1]}</option>
-              ))}
-            </select>
-            <select className="form-input" style={{ width:88 }} value={selYear} onChange={e=>setSelYear(parseInt(e.target.value))}>
-              {[year-1,year,year+1].map(y=><option key={y} value={y}>{y}</option>)}
-            </select>
+            <BottomPicker
+              className="form-input"
+              style={{ flex:1 }}
+              options={Array.from({length:12},(_,i)=>i+1).map(m=>({ label:MONTH_NAMES_MR[m-1], value:m }))}
+              value={selMonth}
+              onChange={val=>setSelMonth(parseInt(val))}
+            />
+            <BottomPicker
+              className="form-input"
+              style={{ width:88 }}
+              options={[year-1,year,year+1].map(y=>({ label:String(y), value:y }))}
+              value={selYear}
+              onChange={val=>setSelYear(parseInt(val))}
+            />
             <button className="btn btn-primary btn-sm" onClick={()=>setGenModal(true)}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
               बिल बनवा
@@ -426,12 +437,14 @@ export default function Bills() {
         <div style={{ display:'flex', flexDirection:'column', gap:12, padding:'4px 0' }}>
           <div className="form-group">
             <label className="form-label">ग्राहक *</label>
-            <select className={`form-input${payErrors.customer_id?' error':''}`} {...pf('customer_id')}>
-              <option value="">ग्राहक निवडा</option>
-              {customers.filter(c=>c.status!=='stopped').map(c=>(
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <BottomPicker
+              className={`form-input${payErrors.customer_id?' error':''}`}
+              options={customers.filter(c=>c.status!=='stopped').map(c=>({ label:c.name, value:c.id }))}
+              value={payForm.customer_id}
+              onChange={val=>{ setPayForm(p=>({...p,customer_id:val})); setPayErrors(p=>({...p,customer_id:''})) }}
+              placeholder="ग्राहक निवडा"
+              searchable={true}
+            />
             {payErrors.customer_id&&<div className="form-error">{payErrors.customer_id}</div>}
           </div>
           <div className="form-group">
@@ -442,9 +455,21 @@ export default function Bills() {
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
             <div className="form-group">
               <label className="form-label">पद्धत</label>
-              <select className="form-input" {...pf('mode')}>
-                {Object.entries(PAYMENT_MODES).map(([k,v])=><option key={k} value={k}>{v}</option>)}
-              </select>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+                {Object.entries(PAYMENT_MODES).map(([k,v]) => {
+                  const icons = { cash:'💵', upi:'📲', bank:'🏦', cheque:'📝' }
+                  const sel = payForm.mode === k
+                  return (
+                    <button key={k} type="button" onClick={() => setPayForm(p=>({...p,mode:k}))}
+                      style={{ padding:'8px 6px', borderRadius:10, border:`1.5px solid ${sel?'var(--accent)':'var(--border)'}`,
+                        background: sel?'rgba(16,185,129,0.15)':'var(--surface2)',
+                        color: sel?'var(--accent)':'var(--text2)', fontWeight: sel?700:500,
+                        fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>
+                      {icons[k]} {v}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
             <div className="form-group">
               <label className="form-label">तारीख</label>
@@ -491,28 +516,36 @@ export default function Bills() {
 
           <div className="form-group" style={{ marginBottom:0 }}>
             <label className="form-label">ग्राहक</label>
-            <select className="form-input" value={genCustomer} onChange={e=>setGenCustomer(e.target.value)}>
-              <option value="all">सर्व सक्रिय ग्राहक ({customers.filter(c=>c.status==='active').length} जण)</option>
-              {customers.filter(c=>c.status==='active').map(c=>(
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <BottomPicker
+              className="form-input"
+              options={[
+                { label:`सर्व सक्रिय ग्राहक (${customers.filter(c=>c.status==='active').length} जण)`, value:'all' },
+                ...customers.filter(c=>c.status==='active').map(c=>({ label:c.name, value:String(c.id) }))
+              ]}
+              value={genCustomer}
+              onChange={val=>setGenCustomer(val)}
+              searchable={true}
+            />
           </div>
 
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
             <div className="form-group" style={{ marginBottom:0 }}>
               <label className="form-label">महिना</label>
-              <select className="form-input" value={selMonth} onChange={e=>setSelMonth(parseInt(e.target.value))}>
-                {Array.from({length:12},(_,i)=>i+1).map(m=>(
-                  <option key={m} value={m}>{MONTH_NAMES_MR[m-1]}</option>
-                ))}
-              </select>
+              <BottomPicker
+                className="form-input"
+                options={Array.from({length:12},(_,i)=>i+1).map(m=>({ label:MONTH_NAMES_MR[m-1], value:m }))}
+                value={selMonth}
+                onChange={val=>setSelMonth(parseInt(val))}
+              />
             </div>
             <div className="form-group" style={{ marginBottom:0 }}>
               <label className="form-label">वर्ष</label>
-              <select className="form-input" value={selYear} onChange={e=>setSelYear(parseInt(e.target.value))}>
-                {[year-1,year,year+1].map(y=><option key={y} value={y}>{y}</option>)}
-              </select>
+              <BottomPicker
+                className="form-input"
+                options={[year-1,year,year+1].map(y=>({ label:String(y), value:y }))}
+                value={selYear}
+                onChange={val=>setSelYear(parseInt(val))}
+              />
             </div>
           </div>
         </div>
