@@ -12,14 +12,14 @@ export default function Backup() {
     setExporting(true)
     try {
       const [customers, deliveries, bills, billItems, payments, areas, rateHistory, settings] = await Promise.all([
-        db.customers.toArray(),
-        db.deliveries.toArray(),
-        db.monthly_bills.toArray(),
-        db.bill_items.toArray(),
-        db.payments.toArray(),
-        db.areas.toArray(),
-        db.rate_history.toArray(),
-        db.settings.toArray(),
+        db.query('SELECT * FROM customers'),
+        db.query('SELECT * FROM deliveries'),
+        db.query('SELECT * FROM monthly_bills'),
+        db.query('SELECT * FROM bill_items'),
+        db.query('SELECT * FROM payments'),
+        db.query('SELECT * FROM areas'),
+        db.query('SELECT * FROM rate_history'),
+        db.query('SELECT * FROM settings'),
       ])
 
       const data = {
@@ -46,9 +46,16 @@ export default function Backup() {
     }
   }, [show])
 
+  const TABLE_SQL = {
+    customers: 'SELECT * FROM customers',
+    deliveries: 'SELECT * FROM deliveries',
+    monthly_bills: 'SELECT * FROM monthly_bills',
+    payments: 'SELECT * FROM payments',
+  }
+
   const exportCSV = useCallback(async (table, filename) => {
     try {
-      const rows = await db[table].toArray()
+      const rows = await db.query(TABLE_SQL[table] || `SELECT * FROM ${table}`)
       if (rows.length === 0) { show('डेटा नाही', 'warning'); return }
       const keys = Object.keys(rows[0])
       const csv  = [keys.join(','), ...rows.map(r => keys.map(k => JSON.stringify(r[k] ?? '')).join(','))].join('\n')
@@ -73,14 +80,23 @@ export default function Backup() {
       const data = JSON.parse(text)
       if (!data.version) { show('अवैध बॅकअप फाईल', 'error'); return }
 
-      if (data.customers?.length)     await db.customers.bulkPut(data.customers)
-      if (data.deliveries?.length)    await db.deliveries.bulkPut(data.deliveries)
-      if (data.monthly_bills?.length) await db.monthly_bills.bulkPut(data.monthly_bills)
-      if (data.bill_items?.length)    await db.bill_items.bulkPut(data.bill_items)
-      if (data.payments?.length)      await db.payments.bulkPut(data.payments)
-      if (data.areas?.length)         await db.areas.bulkPut(data.areas)
-      if (data.rate_history?.length)  await db.rate_history.bulkPut(data.rate_history)
-      if (data.settings?.length)      await db.settings.bulkPut(data.settings)
+      const bulkRestore = async (table, rows) => {
+        if (!rows?.length) return
+        for (const row of rows) {
+          const cols = Object.keys(row)
+          const vals = cols.map(c => row[c])
+          const placeholders = cols.map(() => '?').join(',')
+          await db.run(`INSERT OR REPLACE INTO ${table} (${cols.join(',')}) VALUES (${placeholders})`, vals)
+        }
+      }
+      await bulkRestore('customers', data.customers)
+      await bulkRestore('deliveries', data.deliveries)
+      await bulkRestore('monthly_bills', data.monthly_bills)
+      await bulkRestore('bill_items', data.bill_items)
+      await bulkRestore('payments', data.payments)
+      await bulkRestore('areas', data.areas)
+      await bulkRestore('rate_history', data.rate_history)
+      await bulkRestore('settings', data.settings)
 
       show('डेटा यशस्वीरित्या पुनर्स्थापित झाला', 'success')
     } catch (err) {

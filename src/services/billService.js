@@ -1,36 +1,34 @@
 import db from '../db/database.js'
 import { getDeliveriesForCustomerMonth } from './deliveryService.js'
 
-export const getBills      = ()    => db.monthly_bills.toArray()
-export const getBillById   = (id)  => db.monthly_bills.get(id)
-export const getBillItems  = (id)  => db.bill_items.where('bill_id').equals(id).toArray()
-export const getCustomerBills = (cid) => db.monthly_bills.where('customer_id').equals(cid).toArray()
-export const lockBill      = (id)  => db.monthly_bills.update(id, { is_locked: 1 })
+export const getBills         = ()    => db.query('SELECT * FROM monthly_bills ORDER BY year DESC, month DESC')
+export const getBillById      = (id)  => db.first('SELECT * FROM monthly_bills WHERE id = ? LIMIT 1', [id])
+export const getBillItems     = (id)  => db.query('SELECT * FROM bill_items WHERE bill_id = ?', [id])
+export const getCustomerBills = (cid) => db.query('SELECT * FROM monthly_bills WHERE customer_id = ? ORDER BY year DESC, month DESC', [cid])
+export const lockBill         = (id)  => db.run('UPDATE monthly_bills SET is_locked = 1 WHERE id = ?', [id])
 
 export async function getBillForCustomerMonth(customer_id, month, year) {
-  return db.monthly_bills
-    .filter(b => b.customer_id === customer_id && b.month === month && b.year === year)
-    .first()
+  return db.first(
+    'SELECT * FROM monthly_bills WHERE customer_id = ? AND month = ? AND year = ? LIMIT 1',
+    [customer_id, month, year]
+  )
 }
 
 export async function generateBill(customer_id, month, year) {
-  const customer = await db.customers.get(customer_id)
+  const customer = await db.first('SELECT * FROM customers WHERE id = ? LIMIT 1', [customer_id])
   if (!customer) throw new Error('ग्राहक सापडला नाही')
 
-  // Load all products for rate lookup
-  const products = await db.products.toArray()
+  const products   = await db.query('SELECT * FROM products')
   const productMap = {}
   for (const p of products) productMap[p.id] = p
 
-  // Customer extra subscriptions for per-product rate
-  const extraSubs = await db.customer_products.where('customer_id').equals(customer_id).toArray()
+  const extraSubs    = await db.query('SELECT * FROM customer_products WHERE customer_id = ?', [customer_id])
   const extraRateMap = {}
   for (const s of extraSubs) extraRateMap[s.product_id] = s.rate
 
-  // Get rate for a product_id
   const getRateForProduct = (product_id) => {
     if (product_id === customer.product_id) return customer.rate || 62
-    if (extraRateMap[product_id] != null) return extraRateMap[product_id]
+    if (extraRateMap[product_id] != null)  return extraRateMap[product_id]
     return productMap[product_id]?.default_rate || 62
   }
 
@@ -41,10 +39,11 @@ export async function generateBill(customer_id, month, year) {
   let total_amount = 0
 
   const items = delivered.map(d => {
-    const rate    = getRateForProduct(d.product_id || customer.product_id)
+    const pid     = d.product_id || customer.product_id
+    const rate    = getRateForProduct(pid)
     const qty     = d.qty || 0
     const amount  = qty * rate
-    const product = productMap[d.product_id || customer.product_id]
+    const product = productMap[pid]
     total_qty    += qty
     total_amount += amount
     return {
@@ -53,28 +52,26 @@ export async function generateBill(customer_id, month, year) {
       qty,
       rate,
       amount,
-      product_id:   d.product_id || customer.product_id,
+      product_id:   pid,
       product_name: product?.name || 'दूध',
       unit:         product?.unit || 'L',
     }
   })
 
-  // Previous balance = amount_due of the most recent previous bill only.
-  // Each bill's amount_due already carries forward all older balances, so summing
-  // multiple bills would double-count. We take only the latest one.
-  const prevBills = await db.monthly_bills
-    .filter(b => b.customer_id === customer_id && (b.year < year || (b.year === year && b.month < month)))
-    .toArray()
-  const sortedPrev = prevBills.sort((a, b) => b.year !== a.year ? b.year - a.year : b.month - a.month)
-  const prev_balance = Math.max(0, sortedPrev[0]?.amount_due || 0)
+  // Previous balance — only latest prior bill's amount_due
+  const prevBills = await db.query(
+    'SELECT * FROM monthly_bills WHERE customer_id = ? AND (year < ? OR (year = ? AND month < ?)) ORDER BY year DESC, month DESC LIMIT 1',
+    [customer_id, year, year, month]
+  )
+  const prev_balance = Math.max(0, prevBills[0]?.amount_due || 0)
 
   // Payments this month
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`
   const endDate   = `${year}-${String(month).padStart(2, '0')}-31`
-  const monthPayments = await db.payments
-    .where('customer_id').equals(customer_id)
-    .filter(p => p.date >= startDate && p.date <= endDate)
-    .toArray()
+  const monthPayments = await db.query(
+    'SELECT * FROM payments WHERE customer_id = ? AND date >= ? AND date <= ?',
+    [customer_id, startDate, endDate]
+  )
   const payments_made = monthPayments.reduce((s, p) => s + (p.amount || 0), 0)
 
   const amount_due = Math.max(0, total_amount + prev_balance - payments_made)
@@ -83,25 +80,26 @@ export async function generateBill(customer_id, month, year) {
   const existing = await getBillForCustomerMonth(customer_id, month, year)
   if (existing) {
     if (existing.is_locked) throw new Error('बिल लॉक आहे, बदल करता येणार नाही')
-    await db.bill_items.where('bill_id').equals(existing.id).delete()
-    await db.monthly_bills.delete(existing.id)
+    await db.run('DELETE FROM bill_items WHERE bill_id = ?', [existing.id])
+    await db.run('DELETE FROM monthly_bills WHERE id = ?', [existing.id])
   }
 
-  const bill_id = await db.monthly_bills.add({
-    customer_id, month, year,
-    total_qty, total_amount, prev_balance, payments_made, amount_due,
-    is_locked: 0,
-    generated_date: new Date().toISOString().split('T')[0],
-  })
+  const bill_id = await db.insert(
+    'INSERT INTO monthly_bills (customer_id, month, year, total_qty, total_amount, prev_balance, payments_made, amount_due, is_locked, generated_date) VALUES (?,?,?,?,?,?,?,?,0,?)',
+    [customer_id, month, year, total_qty, total_amount, prev_balance, payments_made, amount_due, new Date().toISOString().split('T')[0]]
+  )
 
   for (const item of items) {
-    await db.bill_items.add({ bill_id, ...item })
+    await db.insert(
+      'INSERT INTO bill_items (bill_id, date, session, qty, rate, amount, product_id, product_name, unit) VALUES (?,?,?,?,?,?,?,?,?)',
+      [bill_id, item.date, item.session, item.qty, item.rate, item.amount, item.product_id, item.product_name, item.unit]
+    )
   }
 
   return bill_id
 }
 
 export async function deleteBill(id) {
-  await db.bill_items.where('bill_id').equals(id).delete()
-  return db.monthly_bills.delete(id)
+  await db.run('DELETE FROM bill_items WHERE bill_id = ?', [id])
+  return db.run('DELETE FROM monthly_bills WHERE id = ?', [id])
 }

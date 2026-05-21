@@ -110,12 +110,12 @@ export default function Reports() {
     try {
       const today = todayStr()
       const [deliveries, payments, bills, customers, products, areas] = await Promise.all([
-        db.deliveries.toArray(),
-        db.payments.toArray(),
-        db.monthly_bills.toArray(),
-        db.customers.toArray(),
-        db.products.toArray(),
-        db.areas.toArray(),
+        db.query('SELECT * FROM deliveries'),
+        db.query('SELECT * FROM payments'),
+        db.query('SELECT * FROM monthly_bills'),
+        db.query('SELECT * FROM customers'),
+        db.query('SELECT * FROM products'),
+        db.query('SELECT * FROM areas'),
       ])
 
       const prodMap   = {}
@@ -178,7 +178,7 @@ export default function Reports() {
       }
       // get revenue from bill_items for this month
       const mBillIds = mBills.map(b => b.id)
-      const mItems   = mBillIds.length > 0 ? await db.bill_items.where('bill_id').anyOf(mBillIds).toArray() : []
+      const mItems   = mBillIds.length > 0 ? await db.query(`SELECT * FROM bill_items WHERE bill_id IN (${mBillIds.map(()=>'?').join(',')})`, mBillIds) : []
       for (const item of mItems) {
         const p = prodMap[item.product_id]
         if (!p) continue

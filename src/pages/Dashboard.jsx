@@ -46,18 +46,18 @@ export default function Dashboard() {
     setMounted(false)
     try {
       const today = todayStr()
-      const settings = await db.settings.toArray()
+      const settings = await db.query('SELECT key, value FROM settings')
       const settingsMap = {}
       for (const s of settings) settingsMap[s.key] = s.value
       if (settingsMap.dairy_name) setDairyName(settingsMap.dairy_name)
 
       const [customers, deliveries, payments, bills, allPayments, products] = await Promise.all([
-        db.customers.toArray(),
-        db.deliveries.where('date').equals(today).toArray(),
-        db.payments.where('date').equals(today).toArray(),
-        db.monthly_bills.toArray(),
-        db.payments.toArray(),
-        db.products.toArray(),
+        db.query('SELECT * FROM customers'),
+        db.query('SELECT * FROM deliveries WHERE date = ?', [today]),
+        db.query('SELECT * FROM payments WHERE date = ?', [today]),
+        db.query('SELECT * FROM monthly_bills'),
+        db.query('SELECT * FROM payments'),
+        db.query('SELECT * FROM products'),
       ])
 
       const productMap = {}
@@ -78,7 +78,7 @@ export default function Dashboard() {
         const prod = productMap[d.product_id]
         if (!prod) continue
         if (!prodTotals[d.product_id]) {
-          prodTotals[d.product_id] = { name: prod.name, type: prod.product_type, unit: prod.unit, qty: 0 }
+          prodTotals[d.product_id] = { name: prod.name, type: prod.type, unit: prod.unit, qty: 0 }
         }
         prodTotals[d.product_id].qty += d.qty || 0
       }
@@ -96,7 +96,7 @@ export default function Dashboard() {
             type:        'delivery',
             customerName: c?.name || 'ग्राहक',
             productName:  prod?.name || 'दूध',
-            productType:  prod?.product_type || 'milk_buffalo',
+            productType:  prod?.type || 'milk_buffalo',
             qty:          d.qty,
             unit:         prod?.unit || 'L',
             session:      d.session,

@@ -333,13 +333,13 @@ export default function CustomerProfile() {
     setLoading(true)
     try {
       const [cust, allAreas, allProds, billList, payList, delivList, settings] = await Promise.all([
-        db.customers.get(custId),
-        db.areas.toArray(),
-        db.products.toArray(),
-        db.monthly_bills.where('customer_id').equals(custId).toArray(),
-        db.payments.where('customer_id').equals(custId).toArray(),
-        db.deliveries.where('customer_id').equals(custId).toArray(),
-        db.settings.toArray(),
+        db.first('SELECT * FROM customers WHERE id = ? LIMIT 1', [custId]),
+        db.query('SELECT * FROM areas ORDER BY sequence'),
+        db.query('SELECT * FROM products'),
+        db.query('SELECT * FROM monthly_bills WHERE customer_id = ?', [custId]),
+        db.query('SELECT * FROM payments WHERE customer_id = ?', [custId]),
+        db.query('SELECT * FROM deliveries WHERE customer_id = ?', [custId]),
+        db.query('SELECT key, value FROM settings'),
       ])
       if (!cust) { navigate('/customers'); return }
       const settingsMap = {}
@@ -370,7 +370,7 @@ export default function CustomerProfile() {
     if (expandedBill?.id === bill.id) { setExpandedBill(null); return }
     setExpandedBill(bill)
     if (!billItemsMap[bill.id]) {
-      const items = await db.bill_items.where('bill_id').equals(bill.id).toArray()
+      const items = await db.query('SELECT * FROM bill_items WHERE bill_id = ?', [bill.id])
       setBillItemsMap(prev => ({ ...prev, [bill.id]: items }))
     }
   }
@@ -378,7 +378,7 @@ export default function CustomerProfile() {
   const handlePrintBill = async (bill) => {
     let items = billItemsMap[bill.id]
     if (!items) {
-      items = await db.bill_items.where('bill_id').equals(bill.id).toArray()
+      items = await db.query('SELECT * FROM bill_items WHERE bill_id = ?', [bill.id])
       setBillItemsMap(prev => ({ ...prev, [bill.id]: items }))
     }
     printBill({ customer, bill, items, dairyName, area })

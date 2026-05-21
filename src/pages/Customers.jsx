@@ -46,11 +46,11 @@ export default function Customers() {
     setCustomers(custs)
     setAreas(areaList)
     setProducts(prodList)
-    const rateSetting = await db.settings.where('key').equals('default_rate').first()
+    const rateSetting = await db.first("SELECT value FROM settings WHERE key = 'default_rate' LIMIT 1")
     if (rateSetting) setDefaultRate(rateSetting.value)
     // Load today's morning deliveries
     const today = todayStr()
-    const deliveries = await db.deliveries.where('date').equals(today).toArray()
+    const deliveries = await db.query('SELECT * FROM deliveries WHERE date = ?', [today])
     const map = {}
     deliveries.forEach(d => { if (d.session === 'morning' && d.status === 'delivered') map[d.customer_id] = true })
     setTodayDelivered(map)

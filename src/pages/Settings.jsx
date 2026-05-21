@@ -25,13 +25,13 @@ export default function Settings() {
   const [tab,          setTab]          = useState(() => new URLSearchParams(location.search).get('tab') || 'profile')
 
   const load = useCallback(async () => {
-    const rows = await db.settings.toArray()
+    const rows = await db.query('SELECT key, value FROM settings')
     const map  = {}
     for (const r of rows) map[r.key] = r.value
     setSettings(prev => ({ ...prev, ...map }))
-    const hist  = await db.rate_history.orderBy('effective_date').reverse().toArray()
+    const hist  = await db.query('SELECT * FROM rate_history ORDER BY effective_date DESC')
     setRateHistory(hist)
-    const prods = await db.products.filter(p => p.type === 'milk_buffalo' || p.type === 'milk_cow').toArray()
+    const prods = await db.query("SELECT * FROM products WHERE type IN ('milk_buffalo','milk_cow')")
     setMilkProducts(prods)
     if (!rateProductId && prods.length > 0) setRateProductId(prods[0].id)
   }, [rateProductId])
@@ -39,9 +39,9 @@ export default function Settings() {
   useEffect(() => { load() }, [load])
 
   const saveSetting = async (key, value) => {
-    const existing = await db.settings.where('key').equals(key).first()
-    if (existing) await db.settings.update(existing.id, { value })
-    else           await db.settings.add({ key, value })
+    const existing = await db.first('SELECT id FROM settings WHERE key = ? LIMIT 1', [key])
+    if (existing) await db.run('UPDATE settings SET value = ? WHERE key = ?', [value, key])
+    else           await db.insert('INSERT INTO settings (key, value) VALUES (?,?)', [key, value])
   }
 
   const handleSaveProfile = async () => {
@@ -61,9 +61,9 @@ export default function Settings() {
     if (!rate || rate <= 0)  { show('योग्य दर टाका', 'error'); return }
     if (!rateProductId)      { show('उत्पादन निवडा', 'error'); return }
     const today = new Date().toISOString().split('T')[0]
-    await db.rate_history.add({ product_id: rateProductId, rate, effective_date: today, notes: rateNotes })
+    await db.insert('INSERT INTO rate_history (product_id, rate, effective_date, notes) VALUES (?,?,?,?)', [rateProductId, rate, today, rateNotes])
     // Also update product's default_rate
-    await db.products.update(rateProductId, { default_rate: rate })
+    await db.run('UPDATE products SET default_rate = ? WHERE id = ?', [rate, rateProductId])
     // Update global default_rate setting to buffalo rate (primary product)
     const bufProd = milkProducts.find(p => p.type === 'milk_buffalo')
     if (!bufProd || rateProductId === bufProd.id) {
