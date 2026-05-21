@@ -1,41 +1,79 @@
-import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite'
 import { Capacitor } from '@capacitor/core'
 
-// ── Connection ────────────────────────────────────────────────────────────────
-const sqliteConnection = new SQLiteConnection(CapacitorSQLite)
-let _conn = null
+// ── Platform detection ────────────────────────────────────────────────────────
+const IS_NATIVE = Capacitor.getPlatform() !== 'web'
 
-async function getConn() {
-  if (_conn) return _conn
-  throw new Error('DB not initialised — call initDB() first')
+// ── Native (Android) connection via @capacitor-community/sqlite ───────────────
+let _conn = null          // native connection
+let _sqljs = null         // sql.js Database instance (web only)
+let _lastInsertId = 0
+
+// ── sql.js web adapter ────────────────────────────────────────────────────────
+// Wraps sql.js Database to expose the same run/query/insert API.
+// Data is persisted in localStorage as a base64 blob between page reloads.
+const WEB_KEY = 'duddairy_sqljs'
+
+function webRun(sql, params = []) {
+  _sqljs.run(sql, params)
+  _lastInsertId = _sqljs.exec('SELECT last_insert_rowid()')[0]?.values[0][0] ?? 0
+  _saveWeb()
+}
+
+function webQuery(sql, params = []) {
+  const res = _sqljs.exec(sql, params)
+  if (!res.length) return []
+  const { columns, values } = res[0]
+  return values.map(row => {
+    const obj = {}
+    columns.forEach((col, i) => { obj[col] = row[i] })
+    return obj
+  })
+}
+
+function _saveWeb() {
+  try {
+    const data = _sqljs.export()
+    const b64  = btoa(String.fromCharCode(...data))
+    localStorage.setItem(WEB_KEY, b64)
+  } catch { /* quota — ignore in dev */ }
+}
+
+async function _initWeb() {
+  const initSqlJs = (await import('sql.js')).default
+  const SQL = await initSqlJs({ locateFile: () => '/sql-wasm.wasm' })
+  const saved = localStorage.getItem(WEB_KEY)
+  if (saved) {
+    const raw = Uint8Array.from(atob(saved), c => c.charCodeAt(0))
+    _sqljs = new SQL.Database(raw)
+  } else {
+    _sqljs = new SQL.Database()
+  }
 }
 
 // ── Public DB API ─────────────────────────────────────────────────────────────
-// All service files use ONLY these four methods — never touch _conn directly.
 export const db = {
-  /** INSERT/UPDATE/DELETE — returns nothing */
   async run(sql, params = []) {
-    const c = await getConn()
-    await c.run(sql, params, false)
+    if (!IS_NATIVE) { webRun(sql, params); return }
+    await _conn.run(sql, params, false)
   },
 
-  /** SELECT — returns array of row objects */
   async query(sql, params = []) {
-    const c = await getConn()
-    const res = await c.query(sql, params)
+    if (!IS_NATIVE) return webQuery(sql, params)
+    const res = await _conn.query(sql, params)
     return res.values ?? []
   },
 
-  /** SELECT first row — returns object or null */
   async first(sql, params = []) {
     const rows = await db.query(sql, params)
     return rows[0] ?? null
   },
 
-  /** INSERT — returns the auto-increment id */
   async insert(sql, params = []) {
-    const c = await getConn()
-    const res = await c.run(sql, params, false)
+    if (!IS_NATIVE) {
+      webRun(sql, params)
+      return _lastInsertId
+    }
+    const res = await _conn.run(sql, params, false)
     return res.changes?.lastId
   },
 }
@@ -406,13 +444,21 @@ async function seedIfEmpty() {
 
 // ── Public init ───────────────────────────────────────────────────────────────
 export async function initDB() {
-  if (_conn) return
+  if (_conn || _sqljs) return
 
-  if (Capacitor.getPlatform() === 'web') {
-    await sqliteConnection.initWebStore()
+  if (!IS_NATIVE) {
+    // Web / dev mode: use sql.js directly (no jeep-sqlite, no WASM version mismatch)
+    await _initWeb()
+    _sqljs.run(DDL)
+    await seedIfEmpty()
+    return
   }
 
-  const dbName = 'duddairy'
+  // Native Android: use @capacitor-community/sqlite
+  const { CapacitorSQLite, SQLiteConnection } = await import('@capacitor-community/sqlite')
+  const sqliteConnection = new SQLiteConnection(CapacitorSQLite)
+
+  const dbName      = 'duddairy'
   const consistency = await sqliteConnection.checkConnectionsConsistency()
   const isConn      = (await sqliteConnection.isConnection(dbName, false)).result
 
@@ -423,11 +469,7 @@ export async function initDB() {
   }
 
   await _conn.open()
-
-  // Create all tables
   await _conn.execute(DDL, false)
-
-  // Seed demo data if fresh install
   await seedIfEmpty()
 }
 
