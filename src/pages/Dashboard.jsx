@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { formatCurrency, todayStr } from '../utils.js'
+import { PRODUCT_TYPE_COLOR, PRODUCT_TYPE_TINT } from '../services/productService.js'
 import db from '../db/database.js'
 
 function useCountUp(target, duration = 900) {
@@ -29,12 +30,12 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [recentActivity, setRecentActivity] = useState([])
+  const [productBreakdown, setProductBreakdown] = useState([])
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [now, setNow] = useState(new Date())
   const [dairyName, setDairyName] = useState('दूध डेअरी')
 
-  // Clock — update every minute (not every second) to avoid excess re-renders
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60000)
     return () => clearInterval(t)
@@ -62,43 +63,61 @@ export default function Dashboard() {
       const productMap = {}
       for (const p of products) productMap[p.id] = p
 
-      const activeCustomers = customers.filter(c => c.status === 'active')
-      const deliveredToday  = deliveries.filter(d => d.status === 'delivered')
-      // Count only milk (L unit) deliveries toward liter total
-      const litersToday     = deliveredToday
-        .filter(d => !productMap[d.product_id] || productMap[d.product_id].unit === 'L')
-        .reduce((s, d) => s + (d.qty || 0), 0)
-      const customersServed = new Set(deliveredToday.map(d => d.customer_id)).size
-      const paymentsToday   = payments.reduce((s, p) => s + (p.amount || 0), 0)
+      const activeCustomers  = customers.filter(c => c.status === 'active')
+      const deliveredToday   = deliveries.filter(d => d.status === 'delivered')
+      const customersServed  = new Set(deliveredToday.map(d => d.customer_id)).size
+      const paymentsToday    = payments.reduce((s, p) => s + (p.amount || 0), 0)
 
-      // Outstanding = total billed - total paid (avoids double-counting prev_balance in amount_due)
-      const totalBilledAll  = bills.reduce((s, b) => s + (b.total_amount || 0), 0)
-      const totalPaidAll    = allPayments.reduce((s, p) => s + (p.amount || 0), 0)
+      const totalBilledAll   = bills.reduce((s, b) => s + (b.total_amount || 0), 0)
+      const totalPaidAll     = allPayments.reduce((s, p) => s + (p.amount || 0), 0)
       const totalOutstanding = Math.max(0, totalBilledAll - totalPaidAll)
 
-      // Recent activity — combine deliveries + payments, sort latest first
+      // ── Per-product breakdown for today ──────────────────────────────────
+      const prodTotals = {}  // { product_id: { name, type, unit, qty } }
+      for (const d of deliveredToday) {
+        const prod = productMap[d.product_id]
+        if (!prod) continue
+        if (!prodTotals[d.product_id]) {
+          prodTotals[d.product_id] = { name: prod.name, type: prod.product_type, unit: prod.unit, qty: 0 }
+        }
+        prodTotals[d.product_id].qty += d.qty || 0
+      }
+      const breakdown = Object.values(prodTotals)
+        .filter(p => p.qty > 0)
+        .sort((a, b) => b.qty - a.qty)
+      setProductBreakdown(breakdown)
+
+      // ── Recent activity ───────────────────────────────────────────────────
       const activity = [
-        ...deliveries.slice(-3).reverse().map(d => {
+        ...deliveries.slice(-5).reverse().map(d => {
           const c    = customers.find(c => c.id === d.customer_id)
           const prod = productMap[d.product_id]
-          const unit = prod?.unit || 'L'
           return {
-            type: 'delivery',
-            label: `${c?.name || 'ग्राहक'} — ${d.qty}${unit} ${d.session === 'morning' ? 'सकाळ' : 'संध्याकाळ'}`,
-            status: d.status,
+            type:        'delivery',
+            customerName: c?.name || 'ग्राहक',
+            productName:  prod?.name || 'दूध',
+            productType:  prod?.product_type || 'milk_buffalo',
+            qty:          d.qty,
+            unit:         prod?.unit || 'L',
+            session:      d.session,
+            status:       d.status,
           }
         }),
-        ...payments.slice(-2).reverse().map(p => {
+        ...payments.slice(-3).reverse().map(p => {
           const c = customers.find(c => c.id === p.customer_id)
           return {
-            type: 'payment',
-            label: `${c?.name || 'ग्राहक'} — ₹${p.amount}`,
-            status: 'paid',
+            type:        'payment',
+            customerName: c?.name || 'ग्राहक',
+            amount:       p.amount,
+            mode:         p.mode,
+            status:       'paid',
           }
         }),
-      ].slice(0, 5)
+      ]
+        .sort(() => -1)  // keep deliveries first, payments after
+        .slice(0, 6)
 
-      setData({ litersToday, customersServed, totalCustomers: activeCustomers.length, paymentsToday, totalOutstanding })
+      setData({ customersServed, totalCustomers: activeCustomers.length, paymentsToday, totalOutstanding })
       setRecentActivity(activity)
     } catch (e) {
       console.error(e)
@@ -110,8 +129,7 @@ export default function Dashboard() {
 
   useEffect(() => { load() }, [load])
 
-  const liters = useCountUp(mounted ? (data?.litersToday  || 0) : 0)
-  const payAmt = useCountUp(mounted ? (data?.paymentsToday || 0) : 0)
+  const payAmt = useCountUp(mounted ? (data?.paymentsToday    || 0) : 0)
   const outAmt = useCountUp(mounted ? (data?.totalOutstanding || 0) : 0)
 
   const hour    = now.getHours()
@@ -181,12 +199,20 @@ export default function Dashboard() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'var(--nav-h)' }}>
 
-      {/* Header */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 40, background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '0 16px', minHeight: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 40,
+        background: 'var(--surface)', borderBottom: '1px solid var(--border)',
+        padding: '0 16px', minHeight: 56,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
-            🥛
-          </div>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 18, flexShrink: 0,
+          }}>🥛</div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dairyName}</div>
             <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>{dateStr}</div>
@@ -210,7 +236,7 @@ export default function Dashboard() {
 
       <div style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        {/* Hero Stats Card */}
+        {/* ── Hero Card ──────────────────────────────────────────────────────── */}
         <div
           className="dash-hero"
           style={{
@@ -219,28 +245,78 @@ export default function Dashboard() {
             transition: 'opacity 0.4s ease, transform 0.4s ease',
           }}
         >
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 2 }}>{greet}, {user?.name || 'मालक'}</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#fff', marginBottom: 14 }}>आजचा दिवस</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', marginBottom: 2 }}>{greet}, {user?.name || 'मालक'}</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#fff', marginBottom: 14 }}>आजचा आढावा</div>
+
+          {/* 3 stat cells */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: productBreakdown.length > 0 ? 12 : 0 }}>
+            {/* Customers served */}
             <div className="dash-stat-cell">
-              <div className="dash-stat-val" style={{ color: '#6ee7b7' }}>{liters.toFixed(1)}L</div>
-              <div className="dash-stat-label">आजचे लिटर</div>
-              <div className="dash-stat-sub">{data?.customersServed}/{data?.totalCustomers} ग्राहक</div>
+              <div className="dash-stat-val" style={{ color: '#6ee7b7' }}>{data?.customersServed || 0}</div>
+              <div className="dash-stat-label">ग्राहक</div>
+              <div className="dash-stat-sub">/{data?.totalCustomers || 0} सक्रिय</div>
             </div>
+            {/* Today payment */}
             <div className="dash-stat-cell">
               <div className="dash-stat-val" style={{ color: '#fde68a' }}>₹{payAmt.toFixed(0)}</div>
               <div className="dash-stat-label">आजचे पैसे</div>
               <div className="dash-stat-sub">जमा झाले</div>
             </div>
+            {/* Outstanding */}
             <div className="dash-stat-cell">
               <div className="dash-stat-val" style={{ color: '#fca5a5' }}>₹{outAmt.toFixed(0)}</div>
               <div className="dash-stat-label">थकबाकी</div>
               <div className="dash-stat-sub">एकूण बाकी</div>
             </div>
           </div>
+
+          {/* Per-product delivery breakdown */}
+          {productBreakdown.length > 0 && (
+            <div style={{
+              borderTop: '1px solid rgba(255,255,255,0.1)',
+              paddingTop: 10,
+              display: 'flex', flexWrap: 'wrap', gap: 8,
+            }}>
+              {productBreakdown.map((p, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: 'rgba(255,255,255,0.08)', borderRadius: 8,
+                  padding: '5px 10px',
+                }}>
+                  <div style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: PRODUCT_TYPE_COLOR[p.type] || '#10b981', flexShrink: 0,
+                  }} />
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>
+                    {p.qty % 1 === 0 ? p.qty : p.qty.toFixed(1)}{p.unit}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>{p.name}</div>
+                </div>
+              ))}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'rgba(255,255,255,0.05)', borderRadius: 8,
+                padding: '5px 10px',
+              }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
+                  {data?.customersServed || 0} ग्राहक सेवित
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* No deliveries yet today */}
+          {productBreakdown.length === 0 && (
+            <div style={{
+              borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10,
+              fontSize: 12, color: 'rgba(255,255,255,0.4)', fontStyle: 'italic',
+            }}>
+              आजची डिलिव्हरी अजून नोंदवली नाही
+            </div>
+          )}
         </div>
 
-        {/* Quick Actions — 2×2 grid */}
+        {/* ── Quick Actions ─────────────────────────────────────────────────── */}
         <div>
           <div className="section-header" style={{ marginBottom: 10 }}>
             <span className="section-title">जलद कृती</span>
@@ -269,12 +345,12 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Recent Activity */}
+        {/* ── Recent Activity ───────────────────────────────────────────────── */}
         <div style={{ opacity: mounted ? 1 : 0, transition: 'opacity 0.5s ease 0.35s' }}>
           <div className="section-header" style={{ marginBottom: 10 }}>
-            <span className="section-title">अलीकडील क्रियाकलाप</span>
+            <span className="section-title">अलीकडील नोंदी</span>
             <button onClick={load} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px' }}>
-              रिफ्रेश ↻
+              ↻ रिफ्रेश
             </button>
           </div>
 
@@ -286,35 +362,72 @@ export default function Dashboard() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {recentActivity.map((a, i) => (
-                <div
-                  key={i}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)' }}
-                >
-                  <div style={{
-                    width: 34, height: 34, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    background: a.type === 'delivery' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-                    color: a.type === 'delivery' ? 'var(--green)' : 'var(--yellow)',
+              {recentActivity.map((a, i) => {
+                const isDelivery = a.type === 'delivery'
+                const prodColor  = PRODUCT_TYPE_COLOR[a.productType] || '#10b981'
+                const prodTint   = PRODUCT_TYPE_TINT[a.productType]  || 'rgba(16,185,129,0.15)'
+                const sessionIcon = a.session === 'morning' ? '☀️' : '🌙'
+
+                return (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '11px 14px',
+                    background: 'var(--surface)', borderRadius: 12,
+                    border: '1px solid var(--border)',
                   }}>
-                    {a.type === 'delivery' ? (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                        <path d="M5 8h14M5 8a2 2 0 00-2 2v6a2 2 0 002 2h14a2 2 0 002-2v-6a2 2 0 00-2-2"/><path d="M8 8V6a2 2 0 012-2h4a2 2 0 012 2v2"/>
-                      </svg>
-                    ) : (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                        <rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/>
-                      </svg>
-                    )}
+                    {/* Avatar — product-colored for deliveries, yellow for payments */}
+                    <div style={{
+                      width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', flexShrink: 0,
+                      background: isDelivery ? prodTint : 'rgba(245,158,11,0.15)',
+                      color:      isDelivery ? prodColor : 'var(--yellow)',
+                    }}>
+                      {isDelivery ? (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                          <path d="M3 6h18M3 12h18M3 18h18"/>
+                        </svg>
+                      ) : (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                          <rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/>
+                        </svg>
+                      )}
+                    </div>
+
+                    {/* Body */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Customer name */}
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {a.customerName}
+                      </div>
+                      {/* Product info / payment info */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3, flexWrap: 'wrap' }}>
+                        {isDelivery ? (
+                          <>
+                            {/* Product color dot + name */}
+                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: prodColor, flexShrink: 0 }} />
+                            <span style={{ fontSize: 11, color: 'var(--text2)' }}>{a.productName}</span>
+                            <span style={{ fontSize: 11, color: 'var(--text2)' }}>·</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: prodColor }}>
+                              {a.qty % 1 === 0 ? a.qty : Number(a.qty).toFixed(1)}{a.unit}
+                            </span>
+                            <span style={{ fontSize: 11 }}>{sessionIcon}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--yellow)' }}>₹{a.amount}</span>
+                            {a.mode && <span style={{ fontSize: 11, color: 'var(--text2)' }}>· {a.mode}</span>}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Status badge */}
+                    <span className={`badge ${a.status === 'delivered' || a.status === 'paid' ? 'badge-green' : 'badge-yellow'}`}>
+                      {a.status === 'delivered' ? 'दिले' : a.status === 'paid' ? 'जमा' : a.status}
+                    </span>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.label}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>आज</div>
-                  </div>
-                  <span className={`badge ${a.status === 'delivered' || a.status === 'paid' ? 'badge-green' : 'badge-yellow'}`}>
-                    {a.status === 'delivered' ? 'दिले' : a.status === 'paid' ? 'जमा' : a.status}
-                  </span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
