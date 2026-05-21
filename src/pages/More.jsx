@@ -71,15 +71,16 @@ const moreItems = [
     )
   },
   {
-    label: 'माहिती',
-    sub: 'App Info',
-    color: '#94a3b8',
-    tint: 'rgba(148,163,184,0.12)',
-    path: null,
+    label: 'मदत व माहिती',
+    sub: 'Help & Guide',
+    color: '#10b981',
+    tint: 'rgba(16,185,129,0.12)',
+    path: '/more/help',
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10"/>
-        <line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
       </svg>
     )
   },
@@ -93,6 +94,7 @@ export default function More() {
   const handleItem = (item) => {
     if (item.action === 'areas') { show('भाग व्यवस्थापन लवकरच येणार आहे', 'info'); return }
     if (item.path) navigate(item.path)
+    else if (!item.action) show('लवकरच येणार आहे', 'info')
   }
 
   return (

@@ -15,6 +15,7 @@ import Reports from './pages/Reports.jsx'
 import Settings from './pages/Settings.jsx'
 import Backup from './pages/Backup.jsx'
 import CustomerProfile from './pages/CustomerProfile.jsx'
+import Help from './pages/Help.jsx'
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth()
@@ -46,6 +47,7 @@ function AppRoutes() {
                 <Route path="/more/reports" element={<Reports />} />
                 <Route path="/more/settings" element={<Settings />} />
                 <Route path="/more/backup" element={<Backup />} />
+                <Route path="/more/help" element={<Help />} />
                 <Route path="/customers/:id" element={<CustomerProfile />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
