@@ -409,10 +409,7 @@ export async function initDB() {
   if (_conn) return
 
   if (Capacitor.getPlatform() === 'web') {
-    // Explicitly point jeep-sqlite to the WASM file in the public/ folder
-    await sqliteConnection.initWebStore({
-      locateFile: (filename) => `/${filename}`,
-    })
+    await sqliteConnection.initWebStore()
   }
 
   const dbName = 'duddairy'
