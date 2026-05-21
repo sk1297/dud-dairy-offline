@@ -311,7 +311,7 @@ function ExtraProductModal({ customer, products, session, date, onClose, onSaved
 }
 
 // ── DeliveryRow: big tap-to-deliver + overflow for other options ─────────────
-function DeliveryRow({ label, delivery, onMark, isExtra, productType }) {
+function DeliveryRow({ label, delivery, onMark, onEditQty, onDelete, isExtra, productType }) {
   const [showOptions, setShowOptions] = useState(false)
   const [dropPos,     setDropPos]     = useState({ top: 0, right: 0 })
   const btnRef = React.useRef(null)
@@ -344,7 +344,13 @@ function DeliveryRow({ label, delivery, onMark, isExtra, productType }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {/* Main big tap button — toggles delivered/pending */}
         <button
-          onClick={() => onMark(status === 'delivered' ? 'pending' : 'delivered')}
+          onClick={() => {
+            if (status === 'delivered') {
+              onEditQty()
+            } else {
+              onMark('delivered')
+            }
+          }}
           style={{
             flex: 1, display: 'flex', alignItems: 'center', gap: 10,
             background: sty.bg, border: `1.5px solid ${sty.border}`,
@@ -422,6 +428,15 @@ function DeliveryRow({ label, delivery, onMark, isExtra, productType }) {
                   {status === btn.s && <svg style={{ marginLeft: 'auto' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>}
                 </button>
               ))}
+              {delivery?.id && (
+                <button
+                  onClick={() => { onDelete(delivery.id); setShowOptions(false) }}
+                  style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'11px 14px',
+                    background:'transparent', border:'none', cursor:'pointer', color:'var(--red)', fontSize:13 }}
+                >
+                  <span style={{ fontSize: 16 }}>🗑️</span> नोंद हटवा
+                </button>
+              )}
             </div>
           </>
         )}
@@ -446,6 +461,10 @@ export default function Delivery() {
   const [partialQty,    setPartialQty]    = useState('')
   const [quickAddOpen,  setQuickAddOpen]  = useState(false)
   const [extraModal,    setExtraModal]    = useState(null)  // { customer }
+  const [editQtyModal,  setEditQtyModal]  = useState(null)  // { customer, product, currentQty, deliveryId }
+  const [editQtyVal,    setEditQtyVal]    = useState('')
+  const [undoBar,       setUndoBar]       = useState(null)  // { date, session, snapshot } shown for 12s after mark-all
+  const [deleteDeliveryId, setDeleteDeliveryId] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -509,6 +528,8 @@ export default function Delivery() {
   }
 
   const markAllDelivered = async () => {
+    // Capture current state for undo
+    const snapshot = { ...deliveries }
     let count = 0
     for (const c of filteredCustomers) {
       const pQty = getDefaultQty(c, c.product_id, true)
@@ -526,6 +547,56 @@ export default function Delivery() {
     }
     await load()
     show(`${count} नोंदी दिले म्हणून केल्या`, 'success')
+    // Show undo bar for 12 seconds
+    setUndoBar({ date, session, snapshot })
+    setTimeout(() => setUndoBar(null), 12000)
+  }
+
+  const handleUndoMarkAll = async () => {
+    if (!undoBar) return
+    // Reset all deliveries for this date+session back to their snapshot state
+    const delivsForSession = await getDeliveriesForDate(undoBar.date)
+    for (const d of delivsForSession) {
+      if (d.session !== undoBar.session) continue
+      const snapKey = `${d.customer_id}_${d.product_id || 1}_${undoBar.session}`
+      const snapDelivery = undoBar.snapshot[snapKey]
+      if (!snapDelivery) {
+        // Was not recorded before mark-all — delete it
+        await db.run('DELETE FROM deliveries WHERE id = ?', [d.id])
+      } else if (snapDelivery.status !== 'delivered') {
+        // Was pending/skip before — restore
+        await db.run('UPDATE deliveries SET status = ?, qty = ? WHERE id = ?', [snapDelivery.status, snapDelivery.qty, d.id])
+      }
+    }
+    setUndoBar(null)
+    await load()
+    show('सर्व नोंदी पूर्ववत केल्या', 'success')
+  }
+
+  const handleEditQtySave = async () => {
+    const qty = parseFloat(editQtyVal)
+    if (!qty || qty <= 0) { show('प्रमाण टाका', 'warning'); return }
+    const { customer, product } = editQtyModal
+    await upsertDelivery(customer.id, product.id, date, session, { qty, status: 'delivered', notes: '' })
+    const key = `${customer.id}_${product.id}_${session}`
+    setDeliveries(prev => ({ ...prev, [key]: { customer_id: customer.id, product_id: product.id, date, session, qty, status: 'delivered' } }))
+    show(`${customer.name} — ${qty}${product.unit || 'L'} अपडेट झाले`, 'success')
+    setEditQtyModal(null); setEditQtyVal('')
+  }
+
+  const handleDeleteDelivery = async () => {
+    if (!deleteDeliveryId) return
+    await db.run('DELETE FROM deliveries WHERE id = ?', [deleteDeliveryId])
+    // Remove from local state
+    setDeliveries(prev => {
+      const next = { ...prev }
+      for (const k of Object.keys(next)) {
+        if (next[k]?.id === deleteDeliveryId) delete next[k]
+      }
+      return next
+    })
+    show('डिलिव्हरी नोंद हटवली', 'success')
+    setDeleteDeliveryId(null)
   }
 
   const handlePartialSave = async () => {
@@ -702,6 +773,11 @@ export default function Delivery() {
                     }
                     markStatus(c, c.product_id, status, primaryQty)
                   }}
+                  onEditQty={() => {
+                    setEditQtyModal({ customer: c, product: primaryProduct })
+                    setEditQtyVal(String(primaryDelivery?.qty || primaryQty))
+                  }}
+                  onDelete={(id) => setDeleteDeliveryId(id)}
                 />
               )}
 
@@ -725,6 +801,11 @@ export default function Delivery() {
                       }
                       markStatus(c, sub.product_id, status, subQty)
                     }}
+                    onEditQty={() => {
+                      setEditQtyModal({ customer: c, product: prod })
+                      setEditQtyVal(String(subDelivery?.qty || subQty))
+                    }}
+                    onDelete={(id) => setDeleteDeliveryId(id)}
                   />
                 )
               })}
@@ -732,6 +813,26 @@ export default function Delivery() {
           )
         })}
       </div>
+
+      {/* Undo bar — shown for 12s after mark-all */}
+      {undoBar && (
+        <div style={{
+          position: 'fixed', bottom: `calc(var(--nav-h) + 64px)`, left: '50%', transform: 'translateX(-50%)',
+          width: 'calc(100% - 32px)', maxWidth: 398,
+          background: '#1e293b', border: '1.5px solid rgba(16,185,129,0.4)',
+          borderRadius: 14, padding: '12px 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          zIndex: 40, boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+        }}>
+          <div style={{ fontSize: 13, color: 'var(--text)' }}>सर्व "{undoBar.session === 'morning' ? 'सकाळ' : 'संध्याकाळ'}" नोंदी दिले केल्या</div>
+          <button
+            onClick={handleUndoMarkAll}
+            style={{ background: 'rgba(16,185,129,0.15)', border: '1.5px solid rgba(16,185,129,0.5)', borderRadius: 10, padding: '7px 14px', color: 'var(--accent)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+          >
+            ↩ पूर्ववत
+          </button>
+        </div>
+      )}
 
       {/* Summary Footer */}
       <div style={{
@@ -786,6 +887,43 @@ export default function Delivery() {
           onSaved={load}
           show={show}
         />
+      )}
+
+      {/* Edit Quantity Modal */}
+      {editQtyModal && (
+        <div className="modal-backdrop" onClick={() => setEditQtyModal(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-handle" />
+            <div className="modal-title">✏️ प्रमाण बदला</div>
+            <div style={{ fontSize: 13, color: 'var(--text2)', textAlign: 'center', marginBottom: 14 }}>
+              {editQtyModal.customer.name} — {editQtyModal.product?.name}
+            </div>
+            <div className="form-group">
+              <label className="form-label">नवीन प्रमाण ({editQtyModal.product?.unit || 'L'})</label>
+              <input className="form-input" type="number" step="0.5" min="0" value={editQtyVal}
+                onChange={e => setEditQtyVal(e.target.value)} autoFocus />
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setEditQtyModal(null)}>रद्द</button>
+              <button className="btn btn-primary" onClick={handleEditQtySave}>जतन करा</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Delivery Confirm */}
+      {deleteDeliveryId && (
+        <div className="modal-backdrop" onClick={() => setDeleteDeliveryId(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-handle" />
+            <div className="modal-title">नोंद हटवायची का?</div>
+            <p className="confirm-msg" style={{ textAlign: 'center', padding: '8px 0 16px' }}>ही डिलिव्हरी नोंद कायमची हटेल.</p>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setDeleteDeliveryId(null)}>नाही</button>
+              <button className="btn btn-danger" onClick={handleDeleteDelivery}>हो, हटवा</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Partial Qty Modal */}

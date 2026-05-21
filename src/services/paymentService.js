@@ -9,10 +9,18 @@ export async function getCustomerPayments(customer_id) {
 }
 
 export async function addPayment(data) {
-  const { customer_id, amount, date, notes = '', method = 'cash' } = data
+  const { customer_id, bill_id = null, amount, date, mode = 'cash', notes = '' } = data
   return db.insert(
-    'INSERT INTO payments (customer_id, amount, date, notes, method) VALUES (?,?,?,?,?)',
-    [customer_id, amount, date, notes, method]
+    'INSERT INTO payments (customer_id, bill_id, date, amount, mode, notes) VALUES (?,?,?,?,?,?)',
+    [customer_id, bill_id, date, amount, mode, notes]
+  )
+}
+
+export async function updatePayment(id, data) {
+  const { amount, date, mode, notes } = data
+  return db.run(
+    'UPDATE payments SET amount = ?, date = ?, mode = ?, notes = ? WHERE id = ?',
+    [amount, date, mode, notes, id]
   )
 }
 

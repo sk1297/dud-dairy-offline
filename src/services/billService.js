@@ -6,6 +6,7 @@ export const getBillById      = (id)  => db.first('SELECT * FROM monthly_bills W
 export const getBillItems     = (id)  => db.query('SELECT * FROM bill_items WHERE bill_id = ?', [id])
 export const getCustomerBills = (cid) => db.query('SELECT * FROM monthly_bills WHERE customer_id = ? ORDER BY year DESC, month DESC', [cid])
 export const lockBill         = (id)  => db.run('UPDATE monthly_bills SET is_locked = 1 WHERE id = ?', [id])
+export const unlockBill       = (id)  => db.run('UPDATE monthly_bills SET is_locked = 0 WHERE id = ?', [id])
 
 export async function getBillForCustomerMonth(customer_id, month, year) {
   return db.first(
@@ -26,7 +27,14 @@ export async function generateBill(customer_id, month, year) {
   const extraRateMap = {}
   for (const s of extraSubs) extraRateMap[s.product_id] = s.rate
 
-  const getRateForProduct = (product_id) => {
+  // Load rate history for rate-per-delivery-date lookup
+  const rateHistory = await db.query('SELECT * FROM rate_history ORDER BY effective_date DESC')
+
+  const getRateForDelivery = (product_id, delivery_date) => {
+    // Find the most recent rate history entry for this product on or before delivery_date
+    const entry = rateHistory.find(r => r.product_id === product_id && r.effective_date <= delivery_date)
+    if (entry) return entry.rate
+    // Fallback: customer rate for primary product, extra sub rate, then product default
     if (product_id === customer.product_id) return customer.rate || 62
     if (extraRateMap[product_id] != null)  return extraRateMap[product_id]
     return productMap[product_id]?.default_rate || 62
@@ -40,7 +48,7 @@ export async function generateBill(customer_id, month, year) {
 
   const items = delivered.map(d => {
     const pid     = d.product_id || customer.product_id
-    const rate    = getRateForProduct(pid)
+    const rate    = getRateForDelivery(pid, d.date)
     const qty     = d.qty || 0
     const amount  = qty * rate
     const product = productMap[pid]

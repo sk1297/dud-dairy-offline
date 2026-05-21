@@ -7,9 +7,9 @@ import BottomPicker from '../components/BottomPicker.jsx'
 import usePullToRefresh from '../hooks/usePullToRefresh.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import { formatCurrency, getMonthYear, todayStr } from '../utils.js'
-import { getBills, generateBill, lockBill, deleteBill, getBillItems } from '../services/billService.js'
+import { getBills, generateBill, lockBill, unlockBill, deleteBill, getBillItems } from '../services/billService.js'
 import { getCustomers } from '../services/customerService.js'
-import { addPayment, getPayments, getOutstanding } from '../services/paymentService.js'
+import { addPayment, updatePayment, deletePayment, getPayments, getOutstanding } from '../services/paymentService.js'
 
 const PAYMENT_MODES = { cash: 'रोख', upi: 'UPI', bank: 'बँक', cheque: 'चेक' }
 const TABS = ['बिले', 'पैसे जमा', 'थकबाकी']
@@ -38,8 +38,19 @@ export default function Bills() {
   const [billDetail, setBillDetail] = useState(null)
   const [billItems,  setBillItems]  = useState([])
 
-  // Delete confirm
+  // Delete confirm (bill)
   const [deleteId, setDeleteId]   = useState(null)
+
+  // Unlock confirm
+  const [unlockId, setUnlockId]   = useState(null)
+
+  // Edit payment
+  const [editPayment, setEditPayment] = useState(null) // payment object being edited
+  const [editPayForm, setEditPayForm] = useState({ amount: '', mode: 'cash', notes: '', date: '' })
+  const [savingEditPay, setSavingEditPay] = useState(false)
+
+  // Delete payment confirm
+  const [deletePayId, setDeletePayId] = useState(null)
 
   // Generate modal
   const [genModal,    setGenModal]    = useState(false)
@@ -91,6 +102,41 @@ export default function Bills() {
   const handleLock = async (id) => {
     await lockBill(id)
     show('बिल लॉक झाले', 'success')
+    load()
+  }
+
+  const handleUnlock = async () => {
+    await unlockBill(unlockId)
+    show('बिल अनलॉक झाले — आता बदल करता येईल', 'success')
+    setUnlockId(null)
+    load()
+  }
+
+  const openEditPayment = (p) => {
+    setEditPayment(p)
+    setEditPayForm({ amount: String(p.amount), mode: p.mode || 'cash', notes: p.notes || '', date: p.date })
+  }
+
+  const handleSaveEditPay = async () => {
+    const amt = parseFloat(editPayForm.amount)
+    if (!amt || amt <= 0) { show('योग्य रक्कम टाका', 'error'); return }
+    setSavingEditPay(true)
+    try {
+      await updatePayment(editPayment.id, { amount: amt, date: editPayForm.date, mode: editPayForm.mode, notes: editPayForm.notes })
+      show('पैसे जमा अपडेट झाले', 'success')
+      setEditPayment(null)
+      load()
+    } catch (err) {
+      show(err.message, 'error')
+    } finally {
+      setSavingEditPay(false)
+    }
+  }
+
+  const handleDeletePayConfirm = async () => {
+    await deletePayment(deletePayId)
+    show('पैसे जमा नोंद हटवली', 'success')
+    setDeletePayId(null)
     load()
   }
 
@@ -305,6 +351,14 @@ export default function Bills() {
                         🔒 लॉक करा
                       </button>
                     )}
+                    {b.is_locked && (
+                      <button
+                        style={{ background:'none', border:'1px solid rgba(245,158,11,0.4)', borderRadius:8, padding:'5px 10px', cursor:'pointer', color:'var(--yellow)', display:'flex', alignItems:'center', gap:5, fontSize:12 }}
+                        onClick={()=>setUnlockId(b.id)}
+                      >
+                        🔓 अनलॉक
+                      </button>
+                    )}
                     {!b.is_locked && (
                       <button
                         style={{ background:'none', border:'1px solid rgba(239,68,68,0.35)', borderRadius:8, padding:'5px 10px', cursor:'pointer', color:'var(--red)', display:'flex', alignItems:'center' }}
@@ -350,20 +404,33 @@ export default function Bills() {
               <div className="empty-desc">वर बटण दाबून पैसे जमा नोंद करा</div>
             </div>
           ) : [...payments].reverse().map(p=>(
-            <div key={p.id} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'12px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:10 }}>
-              <div style={{ display:'flex', gap:10, alignItems:'center', flex:1, minWidth:0 }}>
-                <div style={{ width:38, height:38, borderRadius:10, background:'rgba(16,185,129,0.12)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>
-                  {p.mode==='upi'?'📲':p.mode==='bank'?'🏦':p.mode==='cheque'?'📝':'💵'}
-                </div>
-                <div style={{ minWidth:0 }}>
-                  <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{custName(p.customer_id)}</div>
-                  <div style={{ fontSize:11, color:'var(--text2)', marginTop:2 }}>
-                    {p.date} · {PAYMENT_MODES[p.mode]||p.mode}
-                    {p.notes?` · ${p.notes}`:''}
+            <div key={p.id} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+              <div style={{ padding:'12px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:10 }}>
+                <div style={{ display:'flex', gap:10, alignItems:'center', flex:1, minWidth:0 }}>
+                  <div style={{ width:38, height:38, borderRadius:10, background:'rgba(16,185,129,0.12)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>
+                    {p.mode==='upi'?'📲':p.mode==='bank'?'🏦':p.mode==='cheque'?'📝':'💵'}
+                  </div>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{custName(p.customer_id)}</div>
+                    <div style={{ fontSize:11, color:'var(--text2)', marginTop:2 }}>
+                      {p.date} · {PAYMENT_MODES[p.mode]||p.mode}
+                      {p.notes?` · ${p.notes}`:''}
+                    </div>
                   </div>
                 </div>
+                <div style={{ fontSize:17, fontWeight:800, color:'var(--green)', flexShrink:0 }}>+{formatCurrency(p.amount)}</div>
               </div>
-              <div style={{ fontSize:17, fontWeight:800, color:'var(--green)', flexShrink:0 }}>+{formatCurrency(p.amount)}</div>
+              <div style={{ borderTop:'1px solid var(--border)', background:'rgba(0,0,0,0.08)', padding:'6px 12px', display:'flex', gap:6, justifyContent:'flex-end' }}>
+                <button className="btn btn-ghost btn-sm" style={{ fontSize:12 }} onClick={()=>openEditPayment(p)}>
+                  ✏️ संपादन
+                </button>
+                <button
+                  style={{ background:'none', border:'1px solid rgba(239,68,68,0.35)', borderRadius:8, padding:'4px 10px', cursor:'pointer', color:'var(--red)', fontSize:12 }}
+                  onClick={()=>setDeletePayId(p.id)}
+                >
+                  🗑️ हटवा
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -563,6 +630,78 @@ export default function Bills() {
         }
       >
         <p className="confirm-msg">हे बिल आणि त्यातील सर्व तपशील कायमचा हटेल.</p>
+      </Modal>
+
+      {/* ── Unlock Confirm Modal ── */}
+      <Modal isOpen={!!unlockId} onClose={()=>setUnlockId(null)} title="बिल अनलॉक करायचे का?"
+        footer={
+          <>
+            <button className="btn btn-ghost" onClick={()=>setUnlockId(null)}>नाही</button>
+            <button className="btn btn-primary" onClick={handleUnlock}>🔓 अनलॉक करा</button>
+          </>
+        }
+      >
+        <p className="confirm-msg">बिल अनलॉक केल्यावर पुन्हा बदल करता येईल. बदल केल्यावर पुन्हा लॉक करण्यास विसरू नका.</p>
+      </Modal>
+
+      {/* ── Edit Payment Modal ── */}
+      <Modal isOpen={!!editPayment} onClose={()=>setEditPayment(null)} title="पैसे जमा संपादन"
+        footer={
+          <>
+            <button className="btn btn-ghost" onClick={()=>setEditPayment(null)}>रद्द</button>
+            <button className="btn btn-primary" onClick={handleSaveEditPay} disabled={savingEditPay}>
+              {savingEditPay?<span className="spinner"/>:'जतन करा'}
+            </button>
+          </>
+        }
+      >
+        <div style={{ display:'flex', flexDirection:'column', gap:12, padding:'4px 0' }}>
+          <div className="form-group">
+            <label className="form-label">रक्कम (₹) *</label>
+            <input className="form-input" type="number" inputMode="decimal" min="1"
+              value={editPayForm.amount} onChange={e=>setEditPayForm(p=>({...p,amount:e.target.value}))} />
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <div className="form-group">
+              <label className="form-label">पद्धत</label>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+                {Object.entries(PAYMENT_MODES).map(([k,v]) => {
+                  const icons = { cash:'💵', upi:'📲', bank:'🏦', cheque:'📝' }
+                  const sel = editPayForm.mode === k
+                  return (
+                    <button key={k} type="button" onClick={()=>setEditPayForm(p=>({...p,mode:k}))}
+                      style={{ padding:'8px 6px', borderRadius:10, border:`1.5px solid ${sel?'var(--accent)':'var(--border)'}`,
+                        background:sel?'rgba(16,185,129,0.15)':'var(--surface2)',
+                        color:sel?'var(--accent)':'var(--text2)', fontWeight:sel?700:500,
+                        fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>
+                      {icons[k]} {v}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">तारीख</label>
+              <input className="form-input" type="date" value={editPayForm.date} onChange={e=>setEditPayForm(p=>({...p,date:e.target.value}))} />
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">टीप</label>
+            <input className="form-input" placeholder="नोट्स" value={editPayForm.notes} onChange={e=>setEditPayForm(p=>({...p,notes:e.target.value}))} />
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Delete Payment Confirm ── */}
+      <Modal isOpen={!!deletePayId} onClose={()=>setDeletePayId(null)} title="पैसे जमा नोंद हटवायची का?"
+        footer={
+          <>
+            <button className="btn btn-ghost" onClick={()=>setDeletePayId(null)}>नाही</button>
+            <button className="btn btn-danger" onClick={handleDeletePayConfirm}>हो, हटवा</button>
+          </>
+        }
+      >
+        <p className="confirm-msg">ही पैसे जमा नोंद कायमची हटेल. थकबाकी पुन्हा वाढेल.</p>
       </Modal>
 
       {/* ── Bill Detail Modal ── */}

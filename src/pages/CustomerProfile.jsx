@@ -7,8 +7,8 @@ import BottomPicker from '../components/BottomPicker.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import { formatCurrency, todayStr } from '../utils.js'
 import db from '../db/database.js'
-import { getBillItems, generateBill, lockBill, deleteBill } from '../services/billService.js'
-import { getCustomerPayments, addPayment } from '../services/paymentService.js'
+import { getBillItems, generateBill, lockBill, unlockBill, deleteBill } from '../services/billService.js'
+import { getCustomerPayments, addPayment, updatePayment, deletePayment } from '../services/paymentService.js'
 import { getCustomerProducts, PRODUCT_TYPE_COLOR, PRODUCT_TYPE_TINT } from '../services/productService.js'
 
 const MONTH_NAMES_MR = ['जानेवारी','फेब्रुवारी','मार्च','एप्रिल','मे','जून','जुलै','ऑगस्ट','सप्टेंबर','ऑक्टोबर','नोव्हेंबर','डिसेंबर']
@@ -328,7 +328,12 @@ export default function CustomerProfile() {
   const now = new Date()
   const [genModal,        setGenModal]        = useState(false)
   const [genMonth,        setGenMonth]        = useState(now.getMonth() + 1)
-  const [deleteBillId,    setDeleteBillId]    = useState(null)  // confirm before delete
+  const [deleteBillId,  setDeleteBillId]  = useState(null)  // confirm before delete
+  const [unlockBillId,  setUnlockBillId]  = useState(null)
+  const [editPayment,   setEditPayment]   = useState(null)
+  const [editPayForm,   setEditPayForm]   = useState({ amount: '', mode: 'cash', notes: '', date: '' })
+  const [savingEditPay, setSavingEditPay] = useState(false)
+  const [deletePayId,   setDeletePayId]   = useState(null)
   const [genYear,   setGenYear]   = useState(now.getFullYear())
   const [genning,   setGenning]   = useState(false)
 
@@ -404,6 +409,41 @@ export default function CustomerProfile() {
   const handleLock = async (id) => {
     await lockBill(id)
     show('बिल लॉक झाले', 'success')
+    load()
+  }
+
+  const handleUnlockBill = async () => {
+    await unlockBill(unlockBillId)
+    show('बिल अनलॉक झाले', 'success')
+    setUnlockBillId(null)
+    load()
+  }
+
+  const openEditPayment = (p) => {
+    setEditPayment(p)
+    setEditPayForm({ amount: String(p.amount), mode: p.mode || 'cash', notes: p.notes || '', date: p.date })
+  }
+
+  const handleSaveEditPay = async () => {
+    const amt = parseFloat(editPayForm.amount)
+    if (!amt || amt <= 0) { show('योग्य रक्कम टाका', 'error'); return }
+    setSavingEditPay(true)
+    try {
+      await updatePayment(editPayment.id, { amount: amt, date: editPayForm.date, mode: editPayForm.mode, notes: editPayForm.notes })
+      show('पैसे जमा अपडेट झाले', 'success')
+      setEditPayment(null)
+      load()
+    } catch (err) {
+      show(err.message, 'error')
+    } finally {
+      setSavingEditPay(false)
+    }
+  }
+
+  const handleDeletePayConfirm = async () => {
+    await deletePayment(deletePayId)
+    show('पैसे जमा नोंद हटवली', 'success')
+    setDeletePayId(null)
     load()
   }
 
@@ -686,6 +726,14 @@ export default function CustomerProfile() {
                             </button>
                           </div>
                         )}
+                        {bill.is_locked && (
+                          <div style={{ display: 'flex', gap: 8, padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+                            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--yellow)', fontSize: 12 }}
+                              onClick={e => { e.stopPropagation(); setUnlockBillId(bill.id) }}>
+                              🔓 अनलॉक
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {/* Bill summary info */}
@@ -824,15 +872,22 @@ export default function CustomerProfile() {
                 <div className="empty-title">पैसे जमा नाही</div>
               </div>
             ) : payments.map(p => (
-              <div key={p.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{p.date}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>
-                    {PAYMENT_MODES[p.mode] || p.mode}
-                    {p.notes ? ` • ${p.notes}` : ''}
+              <div key={p.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                <div style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{p.date}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>
+                      {PAYMENT_MODES[p.mode] || p.mode}
+                      {p.notes ? ` • ${p.notes}` : ''}
+                    </div>
                   </div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--green)' }}>+{formatCurrency(p.amount)}</div>
                 </div>
-                <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--green)' }}>+{formatCurrency(p.amount)}</div>
+                <div style={{ borderTop: '1px solid var(--border)', background: 'rgba(0,0,0,0.08)', padding: '6px 12px', display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                  <button className="btn btn-ghost btn-sm" style={{ fontSize: 12 }} onClick={() => openEditPayment(p)}>✏️ संपादन</button>
+                  <button style={{ background: 'none', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: 'var(--red)', fontSize: 12 }}
+                    onClick={() => setDeletePayId(p.id)}>🗑️ हटवा</button>
+                </div>
               </div>
             ))}
 
@@ -939,6 +994,78 @@ export default function CustomerProfile() {
             ⚡ त्या महिन्यातील सर्व डिलिव्हरी नोंदींवर बिल तयार होईल
           </div>
         </div>
+      </Modal>
+
+      {/* ── Unlock Bill Confirm ── */}
+      <Modal isOpen={!!unlockBillId} onClose={() => setUnlockBillId(null)} title="बिल अनलॉक करायचे का?"
+        footer={
+          <>
+            <button className="btn btn-ghost" onClick={() => setUnlockBillId(null)}>नाही</button>
+            <button className="btn btn-primary" onClick={handleUnlockBill}>🔓 अनलॉक करा</button>
+          </>
+        }
+      >
+        <p className="confirm-msg">बिल अनलॉक केल्यावर पुन्हा बदल व पुनर्निर्मिती करता येईल.</p>
+      </Modal>
+
+      {/* ── Edit Payment Modal ── */}
+      <Modal isOpen={!!editPayment} onClose={() => setEditPayment(null)} title="पैसे जमा संपादन"
+        footer={
+          <>
+            <button className="btn btn-ghost" onClick={() => setEditPayment(null)}>रद्द</button>
+            <button className="btn btn-primary" onClick={handleSaveEditPay} disabled={savingEditPay}>
+              {savingEditPay ? <span className="spinner" /> : 'जतन करा'}
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
+          <div className="form-group">
+            <label className="form-label">रक्कम (₹) *</label>
+            <input className="form-input" type="number" inputMode="decimal" min="1"
+              value={editPayForm.amount} onChange={e => setEditPayForm(p => ({ ...p, amount: e.target.value }))} autoFocus />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="form-group">
+              <label className="form-label">पद्धत</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                {Object.entries(PAYMENT_MODES).map(([k, v]) => {
+                  const icons = { cash: '💵', upi: '📲', bank: '🏦', cheque: '📝' }
+                  const sel = editPayForm.mode === k
+                  return (
+                    <button key={k} type="button" onClick={() => setEditPayForm(p => ({ ...p, mode: k }))}
+                      style={{ padding: '8px 6px', borderRadius: 10, border: `1.5px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
+                        background: sel ? 'rgba(16,185,129,0.15)' : 'var(--surface2)',
+                        color: sel ? 'var(--accent)' : 'var(--text2)', fontWeight: sel ? 700 : 500,
+                        fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                      {icons[k]} {v}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">तारीख</label>
+              <input className="form-input" type="date" value={editPayForm.date} onChange={e => setEditPayForm(p => ({ ...p, date: e.target.value }))} />
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">टीप</label>
+            <input className="form-input" placeholder="नोट्स" value={editPayForm.notes} onChange={e => setEditPayForm(p => ({ ...p, notes: e.target.value }))} />
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Delete Payment Confirm ── */}
+      <Modal isOpen={!!deletePayId} onClose={() => setDeletePayId(null)} title="पैसे जमा नोंद हटवायची का?"
+        footer={
+          <>
+            <button className="btn btn-ghost" onClick={() => setDeletePayId(null)}>नाही</button>
+            <button className="btn btn-danger" onClick={handleDeletePayConfirm}>हो, हटवा</button>
+          </>
+        }
+      >
+        <p className="confirm-msg">ही पैसे जमा नोंद कायमची हटेल. थकबाकी पुन्हा वाढेल.</p>
       </Modal>
 
       {/* ── Delete Bill Confirm ── */}
