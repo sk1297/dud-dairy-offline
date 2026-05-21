@@ -43,8 +43,22 @@ async function _initWeb() {
   const SQL = await initSqlJs({ locateFile: () => '/sql-wasm.wasm' })
   const saved = localStorage.getItem(WEB_KEY)
   if (saved) {
-    const raw = Uint8Array.from(atob(saved), c => c.charCodeAt(0))
-    _sqljs = new SQL.Database(raw)
+    try {
+      const raw = Uint8Array.from(atob(saved), c => c.charCodeAt(0))
+      _sqljs = new SQL.Database(raw)
+      // Verify schema is current — check for is_active column in users
+      const cols = _sqljs.exec("PRAGMA table_info(users)")
+      const colNames = cols[0]?.values.map(r => r[1]) ?? []
+      if (!colNames.includes('is_active')) {
+        // Old schema — wipe and start fresh
+        console.warn('Old DB schema detected, clearing localStorage for fresh seed')
+        localStorage.removeItem(WEB_KEY)
+        _sqljs = new SQL.Database()
+      }
+    } catch {
+      localStorage.removeItem(WEB_KEY)
+      _sqljs = new SQL.Database()
+    }
   } else {
     _sqljs = new SQL.Database()
   }
