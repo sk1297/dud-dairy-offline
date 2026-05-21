@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS users (
   mobile TEXT NOT NULL,
   password TEXT NOT NULL,
   role TEXT DEFAULT 'owner',
-  isActive INTEGER DEFAULT 1,
+  is_active INTEGER DEFAULT 1,
   name TEXT
 );
 CREATE TABLE IF NOT EXISTS products (
@@ -206,7 +206,7 @@ async function seedIfEmpty() {
 
   // 1. Owner
   await db.run(
-    `INSERT INTO users (mobile,password,role,isActive,name) VALUES (?,?,?,?,?)`,
+    `INSERT INTO users (mobile,password,role,is_active,name) VALUES (?,?,?,?,?)`,
     ['9999999999','1234','owner',1,'गणेश पाटील']
   )
 
