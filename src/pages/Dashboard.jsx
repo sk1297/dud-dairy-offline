@@ -36,7 +36,6 @@ export default function Dashboard() {
   const [mounted, setMounted] = useState(false)
   const [now, setNow] = useState(new Date())
   const [dairyName, setDairyName] = useState('दूध डेअरी')
-  const { containerRef: dashRef, indicator: dashRefreshIndicator } = usePullToRefresh(load)
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60000)
@@ -130,6 +129,8 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  const { containerRef: dashRef, indicator: dashRefreshIndicator } = usePullToRefresh(load)
 
   const payAmt = useCountUp(mounted ? (data?.paymentsToday    || 0) : 0)
   const outAmt = useCountUp(mounted ? (data?.totalOutstanding || 0) : 0)
