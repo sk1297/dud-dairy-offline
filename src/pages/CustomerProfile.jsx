@@ -288,12 +288,14 @@ function printBill({ customer, bill, items, dairyName, area }) {
     <div class="footer-right">ग्राहकाची सही</div>
   </div>
 
-  <script>window.onload = () => { window.print(); }</script>
+  <script>
+    // Scroll to top on load
+    window.onload = () => { window.scrollTo(0, 0); };
+  </script>
 </body>
 </html>`
 
-  const win = window.open('', '_blank', 'width=820,height=780')
-  if (win) { win.document.write(html); win.document.close() }
+  return html
 }
 
 // ── Main Component ──────────────────────────────────────────────────────────
@@ -337,6 +339,7 @@ export default function CustomerProfile() {
   const [deletePayId,   setDeletePayId]   = useState(null)
   const [genYear,   setGenYear]   = useState(now.getFullYear())
   const [genning,   setGenning]   = useState(false)
+  const [billPreview, setBillPreview] = useState(null) // full-screen in-app bill viewer HTML
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -390,7 +393,8 @@ export default function CustomerProfile() {
       items = await db.query('SELECT * FROM bill_items WHERE bill_id = ?', [bill.id])
       setBillItemsMap(prev => ({ ...prev, [bill.id]: items }))
     }
-    printBill({ customer, bill, items, dairyName, area })
+    const html = printBill({ customer, bill, items, dairyName, area })
+    setBillPreview(html)
   }
 
   const handleGenerate = async () => {
@@ -688,9 +692,9 @@ export default function CustomerProfile() {
                             onClick={() => handlePrintBill(bill)}
                           >
                             <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(16,185,129,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
-                              🖨️
+                              📄
                             </div>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>Print / PDF</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>बिल पाहा</span>
                           </button>
 
                           {/* Copy text */}
@@ -1079,6 +1083,56 @@ export default function CustomerProfile() {
           <button className="btn btn-danger" style={{ flex: 1 }} onClick={handleDeleteBill}>हो, हटवा</button>
         </div>
       </Modal>
+
+      {/* ── In-App Bill Viewer ───────────────────────────────────────────── */}
+      {billPreview && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 200,
+          display: 'flex', flexDirection: 'column',
+          background: '#fff',
+        }}>
+          {/* Toolbar */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '0 16px', height: 52, flexShrink: 0,
+            background: '#065f46', color: '#fff',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 18 }}>📄</span>
+              <span style={{ fontSize: 15, fontWeight: 700 }}>बिल पाहा</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {/* Share via Web Share API if available */}
+              {navigator.share && (
+                <button
+                  onClick={() => {
+                    const blob = new Blob([billPreview], { type: 'text/html' })
+                    const file = new File([blob], 'bill.html', { type: 'text/html' })
+                    navigator.share({ title: 'बिल', files: [file] }).catch(() => {})
+                  }}
+                  style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: '#fff', fontSize: 13, fontWeight: 600 }}
+                >
+                  ↑ शेअर
+                </button>
+              )}
+              <button
+                onClick={() => setBillPreview(null)}
+                style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', color: '#fff', fontSize: 15, fontWeight: 700 }}
+              >
+                ✕ बंद
+              </button>
+            </div>
+          </div>
+
+          {/* Bill HTML rendered in iframe — stays inside the app */}
+          <iframe
+            srcDoc={billPreview}
+            title="बिल"
+            style={{ flex: 1, border: 'none', width: '100%', background: '#fff' }}
+            sandbox="allow-scripts allow-same-origin"
+          />
+        </div>
+      )}
     </div>
   )
 }
