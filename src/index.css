@@ -128,7 +128,7 @@ body {
 .page {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: calc(var(--nav-h) + 16px);
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
 }
 
 /* ── BOTTOM NAV ── */
@@ -139,12 +139,15 @@ body {
   transform: translateX(-50%);
   width: 100%;
   max-width: 430px;
-  height: var(--nav-h);
+  /* grow to cover device gesture/button bar */
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--surface);
   border-top: 1px solid var(--border);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-around;
+  padding-top: 2px;
   z-index: 50;
   box-shadow: 0 -2px 12px rgba(0,0,0,0.3);
 }

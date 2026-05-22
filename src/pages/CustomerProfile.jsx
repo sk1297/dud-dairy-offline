@@ -510,7 +510,7 @@ export default function CustomerProfile() {
   if (!customer) return null
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'var(--nav-h)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px))' }}>
       <Header
         title={customer.name}
         subtitle={`${customer.status === 'active' ? '🟢 सक्रिय' : customer.status === 'paused' ? '🟡 थांबले' : '🔴 बंद'}${primaryProduct ? '  ·  ' + (primaryProduct.type === 'milk_buffalo' ? '🐃' : '🐄') + ' ' + primaryProduct.name : ''}`}
