@@ -1,26 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- This file is AUTO-APPLIED by: npm run android:patch -->
-<!-- It replaces android/app/src/main/res/values/styles.xml after cap sync -->
 <resources>
 
     <!-- Base application theme -->
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.DarkActionBar">
-        <!-- App background — prevents white flash on load -->
-        <item name="android:windowBackground">@color/ic_launcher_background</item>
-        <!-- Status bar — dark icons on dark background -->
         <item name="android:statusBarColor">#0f172a</item>
         <item name="android:windowLightStatusBar">false</item>
-        <!-- Navigation bar (bottom gesture/button bar) — dark -->
         <item name="android:navigationBarColor">#0f172a</item>
         <item name="android:windowLightNavigationBar">false</item>
-        <!-- Draw edge-to-edge so app controls the full screen -->
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
     </style>
 
-    <!-- Bridge theme — used by Capacitor WebView activity -->
+    <!-- Used by Capacitor WebView activity (no action bar) -->
     <style name="AppTheme.NoActionBar" parent="AppTheme">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
+    </style>
+
+    <!-- Required by Capacitor for the launch/splash screen -->
+    <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
+        <item name="android:background">@color/ic_launcher_background</item>
+        <item name="android:statusBarColor">#0f172a</item>
+        <item name="android:navigationBarColor">#0f172a</item>
     </style>
 
 </resources>
