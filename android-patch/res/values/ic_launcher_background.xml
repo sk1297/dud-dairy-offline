@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- White background for adaptive icon — shows behind the logo on round/squircle launchers -->
+    <color name="ic_launcher_background">#FFFFFF</color>
+</resources>

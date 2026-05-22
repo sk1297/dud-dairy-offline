@@ -43,12 +43,21 @@ copyFile(
 )
 console.log('✓ styles.xml — dark status bar + dark splash')
 
-// ─── 2. colors.xml ───────────────────────────────────────────────────────────
+// ─── 2. colors.xml + ic_launcher_background.xml ──────────────────────────────
+// colors.xml adds splash_background (new resource, no conflict)
 copyFile(
   resolve(patchRes, 'values', 'colors.xml'),
   resolve(androidRes, 'values', 'colors.xml')
 )
-console.log('✓ colors.xml — icon background + splash colours')
+// ic_launcher_background.xml OVERWRITES the Capacitor-generated file that
+// sets the default teal colour — we replace it with white so the dairy logo
+// looks correct on round/squircle launcher icons.
+copyFile(
+  resolve(patchRes, 'values', 'ic_launcher_background.xml'),
+  resolve(androidRes, 'values', 'ic_launcher_background.xml')
+)
+console.log('✓ colors.xml — splash background colour')
+console.log('✓ ic_launcher_background.xml — icon background set to white')
 
 // ─── 3 & 4. mipmap PNG icons ─────────────────────────────────────────────────
 const mipmapFolders = [

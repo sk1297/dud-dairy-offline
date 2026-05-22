@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Icon background: white so the dairy logo looks clean on all launcher shapes -->
-    <color name="ic_launcher_background">#FFFFFF</color>
-    <!-- Splash / launch screen background: matches app dark theme, prevents white flash -->
+    <!-- Splash/launch screen background: matches app dark theme, prevents white flash -->
+    <!-- ic_launcher_background is patched separately in ic_launcher_background.xml -->
     <color name="splash_background">#0f172a</color>
 </resources>
