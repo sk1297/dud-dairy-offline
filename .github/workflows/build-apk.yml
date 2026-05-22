@@ -44,6 +44,9 @@ jobs:
       - name: Sync Capacitor Android
         run: npx cap sync android
 
+      - name: Apply Android patches (icons + dark status/nav bar)
+        run: npm run android:patch
+
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
