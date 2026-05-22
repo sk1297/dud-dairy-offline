@@ -12,6 +12,13 @@ async function start() {
     defineCustomElements(window)
     // small delay for the custom element to register
     await new Promise(r => setTimeout(r, 200))
+
+    // Match status bar to app dark background
+    try {
+      const { StatusBar, Style } = await import('@capacitor/status-bar')
+      await StatusBar.setStyle({ style: Style.Dark })
+      await StatusBar.setBackgroundColor({ color: '#0f172a' })
+    } catch (_) { /* ignore on older Android */ }
   }
 
   await initDB()
