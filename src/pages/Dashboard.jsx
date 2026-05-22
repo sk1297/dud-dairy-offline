@@ -95,6 +95,7 @@ export default function Dashboard() {
           const prod = productMap[d.product_id]
           return {
             type:        'delivery',
+            customerId:   d.customer_id,
             customerName: c?.name || 'ग्राहक',
             productName:  prod?.name || 'दूध',
             productType:  prod?.type || 'milk_buffalo',
@@ -108,6 +109,7 @@ export default function Dashboard() {
           const c = customers.find(c => c.id === p.customer_id)
           return {
             type:        'payment',
+            customerId:   p.customer_id,
             customerName: c?.name || 'ग्राहक',
             amount:       p.amount,
             mode:         p.mode,
@@ -242,19 +244,19 @@ export default function Dashboard() {
           {/* 3 stat cells */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: productBreakdown.length > 0 ? 12 : 0 }}>
             {/* Customers served */}
-            <div className="dash-stat-cell">
+            <div className="dash-stat-cell" style={{ cursor: 'pointer' }} onClick={() => navigate('/delivery')}>
               <div className="dash-stat-val" style={{ color: '#6ee7b7' }}>{data?.customersServed || 0}</div>
               <div className="dash-stat-label">ग्राहक</div>
               <div className="dash-stat-sub">/{data?.totalCustomers || 0} सक्रिय</div>
             </div>
             {/* Today payment */}
-            <div className="dash-stat-cell">
+            <div className="dash-stat-cell" style={{ cursor: 'pointer' }} onClick={() => navigate('/bills', { state: { openPayTab: true } })}>
               <div className="dash-stat-val" style={{ color: '#fde68a' }}>₹{payAmt.toFixed(0)}</div>
               <div className="dash-stat-label">आजचे पैसे</div>
               <div className="dash-stat-sub">जमा झाले</div>
             </div>
             {/* Outstanding */}
-            <div className="dash-stat-cell">
+            <div className="dash-stat-cell" style={{ cursor: 'pointer' }} onClick={() => navigate('/bills', { state: { openOutstandingTab: true } })}>
               <div className="dash-stat-val" style={{ color: '#fca5a5' }}>₹{outAmt.toFixed(0)}</div>
               <div className="dash-stat-label">थकबाकी</div>
               <div className="dash-stat-sub">एकूण बाकी</div>
@@ -340,9 +342,14 @@ export default function Dashboard() {
         <div style={{ opacity: mounted ? 1 : 0, transition: 'opacity 0.5s ease 0.35s' }}>
           <div className="section-header" style={{ marginBottom: 10 }}>
             <span className="section-title">अलीकडील नोंदी</span>
-            <button onClick={load} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px' }}>
-              ↻ रिफ्रेश
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => navigate('/delivery')} style={{ background: 'none', border: 'none', color: 'var(--text2)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px' }}>
+                सर्व पाहा →
+              </button>
+              <button onClick={load} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 6px' }}>
+                ↻
+              </button>
+            </div>
           </div>
 
           {recentActivity.length === 0 ? (
@@ -359,12 +366,21 @@ export default function Dashboard() {
                 const prodTint   = PRODUCT_TYPE_TINT[a.productType]  || 'rgba(16,185,129,0.15)'
                 const sessionIcon = a.session === 'morning' ? '☀️' : '🌙'
 
+                const handleActivityClick = () => {
+                  if (!a.customerId) return
+                  // delivery → CustomerProfile deliveries tab (1), payment → payments tab (2)
+                  navigate(`/customers/${a.customerId}`, { state: { tab: isDelivery ? 1 : 2 } })
+                }
+
                 return (
-                  <div key={i} style={{
+                  <div key={i} onClick={handleActivityClick} style={{
                     display: 'flex', alignItems: 'center', gap: 12,
                     padding: '11px 14px',
                     background: 'var(--surface)', borderRadius: 12,
                     border: '1px solid var(--border)',
+                    cursor: a.customerId ? 'pointer' : 'default',
+                    WebkitTapHighlightColor: 'transparent',
+                    transition: 'background 0.15s',
                   }}>
                     {/* Avatar — product-colored for deliveries, yellow for payments */}
                     <div style={{
@@ -412,10 +428,17 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    {/* Status badge */}
-                    <span className={`badge ${a.status === 'delivered' || a.status === 'paid' ? 'badge-green' : 'badge-yellow'}`}>
-                      {a.status === 'delivered' ? 'दिले' : a.status === 'paid' ? 'जमा' : a.status}
-                    </span>
+                    {/* Status badge + chevron */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      <span className={`badge ${a.status === 'delivered' || a.status === 'paid' ? 'badge-green' : 'badge-yellow'}`}>
+                        {a.status === 'delivered' ? 'दिले' : a.status === 'paid' ? 'जमा' : a.status}
+                      </span>
+                      {a.customerId && (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                      )}
+                    </div>
                   </div>
                 )
               })}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import Header from '../components/Header.jsx'
 import Modal from '../components/Modal.jsx'
 import TextInput from '../components/TextInput.jsx'
@@ -18,7 +18,8 @@ const MONTH_NAMES_MR = ['जानेवारी','फेब्रुवार�
 export default function Bills() {
   const { show } = useToast()
   const location = useLocation()
-  const [tab, setTab]             = useState(() => location.state?.openPayTab ? 1 : 0)
+  const navigate = useNavigate()
+  const [tab, setTab]             = useState(() => location.state?.openOutstandingTab ? 2 : location.state?.openPayTab ? 1 : 0)
   const [bills, setBills]         = useState([])
   const [customers, setCustomers] = useState([])
   const [payments, setPayments]   = useState([])
@@ -316,7 +317,10 @@ export default function Bills() {
                 <div style={{ padding:'13px 14px 11px', cursor:'pointer' }} onClick={()=>openBillDetail(b)}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontSize:15, fontWeight:700, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                      <div
+                        style={{ fontSize:15, fontWeight:700, color:'var(--accent)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', display:'inline-block', maxWidth:'100%' }}
+                        onClick={e=>{ e.stopPropagation(); navigate(`/customers/${b.customer_id}`) }}
+                      >
                         {c?.name||'ग्राहक'}
                       </div>
                       <div style={{ fontSize:12, color:'var(--text2)', marginTop:3 }}>
@@ -411,7 +415,10 @@ export default function Bills() {
                     {p.mode==='upi'?'📲':p.mode==='bank'?'🏦':p.mode==='cheque'?'📝':'💵'}
                   </div>
                   <div style={{ minWidth:0 }}>
-                    <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{custName(p.customer_id)}</div>
+                    <div
+                      style={{ fontSize:14, fontWeight:700, color:'var(--accent)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer' }}
+                      onClick={()=>navigate(`/customers/${p.customer_id}`, { state: { tab: 2 } })}
+                    >{custName(p.customer_id)}</div>
                     <div style={{ fontSize:11, color:'var(--text2)', marginTop:2 }}>
                       {p.date} · {PAYMENT_MODES[p.mode]||p.mode}
                       {p.notes?` · ${p.notes}`:''}
@@ -464,7 +471,7 @@ export default function Bills() {
               <div className="empty-desc">सर्व पैसे जमा झाले आहेत</div>
             </div>
           ) : outstanding.map((c,i)=>(
-            <div key={c.id} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:14, boxShadow:'0 1px 6px rgba(0,0,0,0.15)' }}>
+            <div key={c.id} onClick={()=>navigate(`/customers/${c.id}`)} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:14, boxShadow:'0 1px 6px rgba(0,0,0,0.15)', cursor:'pointer', WebkitTapHighlightColor:'transparent' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:7 }}>
@@ -477,9 +484,14 @@ export default function Bills() {
                     <span style={{ color:'var(--green)' }}>जमा {formatCurrency(c.totalPaid)}</span>
                   </div>
                 </div>
-                <div style={{ textAlign:'right', flexShrink:0 }}>
-                  <div style={{ fontSize:18, fontWeight:900, color:'var(--red)' }}>{formatCurrency(c.outstanding)}</div>
-                  <div style={{ fontSize:10, color:'var(--text2)', marginTop:2 }}>थकबाकी</div>
+                <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+                  <div style={{ textAlign:'right' }}>
+                    <div style={{ fontSize:18, fontWeight:900, color:'var(--red)' }}>{formatCurrency(c.outstanding)}</div>
+                    <div style={{ fontSize:10, color:'var(--text2)', marginTop:2 }}>थकबाकी</div>
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
                 </div>
               </div>
               {c.totalBilled>0 && (

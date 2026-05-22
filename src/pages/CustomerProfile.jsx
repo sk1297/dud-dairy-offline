@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import Header from '../components/Header.jsx'
 import Modal from '../components/Modal.jsx'
 import TextInput from '../components/TextInput.jsx'
@@ -300,6 +300,7 @@ function printBill({ customer, bill, items, dairyName, area }) {
 export default function CustomerProfile() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { show } = useToast()
   const custId = parseInt(id)
 
@@ -312,7 +313,7 @@ export default function CustomerProfile() {
   const [deliveries, setDeliveries] = useState([])
   const [dairyName,  setDairyName]  = useState('दूध डेअरी')
   const [loading,    setLoading]    = useState(true)
-  const [tab,        setTab]        = useState(0)  // 0=बिले, 1=डिलिव्हरी, 2=पैसे
+  const [tab,        setTab]        = useState(() => location.state?.tab ?? 0)  // 0=बिले, 1=डिलिव्हरी, 2=पैसे
 
   // Bill detail expand
   const [expandedBill,  setExpandedBill]  = useState(null)

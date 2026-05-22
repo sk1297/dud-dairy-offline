@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header.jsx'
 import TextInput from '../components/TextInput.jsx'
 import BottomPicker from '../components/BottomPicker.jsx'
@@ -447,6 +448,7 @@ function DeliveryRow({ label, delivery, onMark, onEditQty, onDelete, isExtra, pr
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function Delivery() {
+  const navigate = useNavigate()
   const { show } = useToast()
   const [session,       setSession]       = useState('morning')
   const [selectedArea,  setSelectedArea]  = useState('all')
@@ -734,7 +736,10 @@ export default function Delivery() {
                   {/* Done indicator dot */}
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: isDone ? 'var(--green)' : 'var(--border)', flexShrink: 0 }} />
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{c.name}</div>
+                    <div
+                      style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer' }}
+                      onClick={() => navigate(`/customers/${c.id}`)}
+                    >{c.name}</div>
                     {areaName && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>{areaName}</div>}
                   </div>
                 </div>
