@@ -240,7 +240,7 @@ export default function Reports() {
 
   // ── render ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px))' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px)' }}>
       <Header title="अहवाल" icon="📊" subtitle="उत्पन्न, डिलिव्हरी व थकबाकी विश्लेषण" onBack={() => navigate('/more')} />
 
       <div style={{ padding: '12px 16px 0' }}>

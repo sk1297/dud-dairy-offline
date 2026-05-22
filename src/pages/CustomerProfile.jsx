@@ -514,7 +514,7 @@ export default function CustomerProfile() {
   if (!customer) return null
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px))' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px)' }}>
       <Header
         title={customer.name}
         subtitle={`${customer.status === 'active' ? '🟢 सक्रिय' : customer.status === 'paused' ? '🟡 थांबले' : '🔴 बंद'}${primaryProduct ? '  ·  ' + (primaryProduct.type === 'milk_buffalo' ? '🐃' : '🐄') + ' ' + primaryProduct.name : ''}`}
@@ -1125,7 +1125,7 @@ export default function CustomerProfile() {
           </div>
           <div className="form-group">
             <label className="form-label">टीप</label>
-            <input className="form-input" placeholder="नोट्स" value={editPayForm.notes} onChange={e => setEditPayForm(p => ({ ...p, notes: e.target.value }))} />
+            <TextInput className="form-input" placeholder="नोट्स" value={editPayForm.notes} onChange={e => setEditPayForm(p => ({ ...p, notes: e.target.value }))} />
           </div>
         </div>
       </Modal>

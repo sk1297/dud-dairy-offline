@@ -777,7 +777,7 @@ export default function Bills() {
           </div>
           <div className="form-group">
             <label className="form-label">टीप</label>
-            <input className="form-input" placeholder="नोट्स" value={editPayForm.notes} onChange={e=>setEditPayForm(p=>({...p,notes:e.target.value}))} />
+            <TextInput className="form-input" placeholder="नोट्स" value={editPayForm.notes} onChange={e=>setEditPayForm(p=>({...p,notes:e.target.value}))} />
           </div>
         </div>
       </Modal>

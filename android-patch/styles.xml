@@ -3,24 +3,32 @@
 
     <!-- Base application theme -->
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.DarkActionBar">
-        <item name="android:statusBarColor">#0f172a</item>
+        <!-- Transparent system bars — CSS/JS controls the colours via StatusBar plugin -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:navigationBarColor">#0f172a</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightNavigationBar">false</item>
+        <!-- Draw behind system bars (required for edge-to-edge layout) -->
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <!-- Do NOT fit system windows — lets CSS handle safe-area insets -->
+        <item name="android:fitsSystemWindows">false</item>
     </style>
 
-    <!-- Used by Capacitor WebView activity (no action bar) -->
+    <!-- Capacitor WebView activity (no action bar) -->
     <style name="AppTheme.NoActionBar" parent="AppTheme">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
     </style>
 
-    <!-- Required by Capacitor for the launch/splash screen -->
+    <!-- Launch / splash screen theme.
+         Background = dark app colour so there is NO white flash before the
+         WebView loads. Status/nav bar colours locked to dark theme. -->
     <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
-        <item name="android:background">@color/ic_launcher_background</item>
-        <item name="android:statusBarColor">#0f172a</item>
-        <item name="android:navigationBarColor">#0f172a</item>
+        <item name="android:background">@color/splash_background</item>
+        <item name="android:statusBarColor">@color/splash_background</item>
+        <item name="android:navigationBarColor">@color/splash_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 
 </resources>

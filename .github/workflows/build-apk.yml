@@ -3,49 +3,85 @@ name: Build Android APK
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch:  # allows manual trigger from GitHub UI
+  workflow_dispatch:   # allows manual trigger from GitHub Actions UI
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
+      # ── 1. Source code ──────────────────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # ── 2. Node.js + npm cache ─────────────────────────────────────────────
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'          # caches ~/.npm — speeds up subsequent runs
 
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
+      # ── 3. Build web assets ─────────────────────────────────────────────────
       - name: Build web app
-        run: npx vite build
+        run: npm run build
         env:
           VITE_APP_KEY_HASH: ${{ secrets.VITE_APP_KEY_HASH }}
 
-      - name: Setup Java 21
+      # ── 4. Java + Android SDK ──────────────────────────────────────────────
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: '17'    # Capacitor 8 requires JDK 17
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      # ── 5. Capacitor Android ───────────────────────────────────────────────
       - name: Install Capacitor CLI
         run: npm install -g @capacitor/cli
 
       - name: Add Capacitor Android platform
         run: npx cap add android
 
-      - name: Sync Capacitor Android
+      - name: Sync Capacitor to Android
         run: npx cap sync android
 
-      - name: Apply Android patches (icons + dark status/nav bar)
+      # ── 6. Generate proper adaptive icon foreground PNGs ──────────────────
+      #       Adaptive icons (Android 8+) need ic_launcher_foreground.png
+      #       at 1.5× the standard mipmap size.  ImageMagick is pre-installed
+      #       on ubuntu-latest runners.
+      - name: Generate adaptive icon foreground images
+        run: |
+          SRC="public/icon.png"
+          PATCH="android-patch/res"
+          # foreground sizes = 1.5 × standard icon sizes (the extra 1/3 is the
+          # safe-zone padding that adaptive launchers display outside)
+          convert "$SRC" -resize 108x108  -background white -gravity center -extent 108x108  "$PATCH/mipmap-mdpi/ic_launcher_foreground.png"
+          convert "$SRC" -resize 162x162  -background white -gravity center -extent 162x162  "$PATCH/mipmap-hdpi/ic_launcher_foreground.png"
+          convert "$SRC" -resize 216x216  -background white -gravity center -extent 216x216  "$PATCH/mipmap-xhdpi/ic_launcher_foreground.png"
+          convert "$SRC" -resize 324x324  -background white -gravity center -extent 324x324  "$PATCH/mipmap-xxhdpi/ic_launcher_foreground.png"
+          convert "$SRC" -resize 432x432  -background white -gravity center -extent 432x432  "$PATCH/mipmap-xxxhdpi/ic_launcher_foreground.png"
+          echo "Foreground icon PNGs generated:"
+          ls -lh "$PATCH"/mipmap-*/ic_launcher_foreground.png
+
+      # ── 7. Apply all Android patches ──────────────────────────────────────
+      #       (styles, colors, icons, adaptive XMLs, strings app_name)
+      - name: Apply Android patches
         run: npm run android:patch
+
+      # ── 8. Gradle build with caching ──────────────────────────────────────
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
@@ -53,11 +89,21 @@ jobs:
       - name: Build Debug APK
         run: |
           cd android
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace
+        env:
+          JAVA_HOME: ${{ env.JAVA_HOME }}
 
-      - name: Upload APK
+      # ── 9. Copy APK to output folder (matches local build guide) ──────────
+      - name: Copy APK to apk-output
+        run: |
+          mkdir -p apk-output
+          cp android/app/build/outputs/apk/debug/app-debug.apk apk-output/dud-dairy-debug.apk
+          echo "APK size: $(du -sh apk-output/dud-dairy-debug.apk)"
+
+      # ── 10. Upload APK as GitHub Actions artifact ──────────────────────────
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: dud-dairy-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: apk-output/dud-dairy-debug.apk
           retention-days: 30

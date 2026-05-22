@@ -7,11 +7,20 @@
     "allowMixedContent": true,
     "captureInput": true,
     "webContentsDebuggingEnabled": false,
-    "backgroundColor": "#0f172a"
+    "backgroundColor": "#0f172a",
+    "loggingBehavior": "none",
+    "adjustResize": false
   },
   "server": {
     "androidScheme": "https",
     "hostname": "duddairy.app",
     "cleartext": false
+  },
+  "plugins": {
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0f172a",
+      "overlaysWebView": true
+    }
   }
 }

@@ -70,6 +70,8 @@ body {
   flex-direction: column;
   position: relative;
   background: var(--bg);
+  /* Push ALL content below the Android/iOS status bar (WiFi, battery, time) */
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 /* ── OFFLINE BANNER ── */
@@ -128,6 +130,7 @@ body {
 .page {
   flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* smooth momentum scroll in WebView */
   padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
 }
 
@@ -332,6 +335,7 @@ select.form-input {
   max-width: 430px;
   max-height: 90dvh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 20px 20px 32px;
   animation: slideUp 0.25s ease;
 }
@@ -1377,3 +1381,14 @@ select.input {
 
 /* SCROLLBAR */
 ::-webkit-scrollbar { display: none; }
+
+/* ── ANDROID WEBVIEW SCROLL FIX ──
+   Every element with overflow:auto/scroll gets momentum scrolling.
+   This prevents scroll from feeling "sticky" or randomly blocked
+   in Capacitor WebView on Android. */
+[style*="overflow-y: auto"],
+[style*="overflowY: auto"],
+[style*="overflow-y:auto"],
+[style*="overflowY:auto"] {
+  -webkit-overflow-scrolling: touch;
+}
