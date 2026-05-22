@@ -52,8 +52,10 @@ jobs:
 
       # ── 6. Generate proper adaptive icon foreground PNGs ──────────────────
       #       Adaptive icons (Android 8+) need ic_launcher_foreground.png
-      #       at 1.5× the standard mipmap size.  ImageMagick is pre-installed
-      #       on ubuntu-latest runners.
+      #       at 1.5× the standard mipmap size.
+      - name: Install ImageMagick
+        run: sudo apt-get install -y imagemagick
+
       - name: Generate adaptive icon foreground images
         run: |
           SRC="public/icon.png"
