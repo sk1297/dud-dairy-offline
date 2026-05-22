@@ -111,3 +111,24 @@ export async function deleteBill(id) {
   await db.run('DELETE FROM bill_items WHERE bill_id = ?', [id])
   return db.run('DELETE FROM monthly_bills WHERE id = ?', [id])
 }
+
+export async function generateBillsForAll(month, year, onProgress) {
+  const customers = await db.query("SELECT * FROM customers WHERE status = 'active'")
+  const results = { success: 0, skipped: 0, errors: [] }
+  for (let i = 0; i < customers.length; i++) {
+    const c = customers[i]
+    if (onProgress) onProgress(i + 1, customers.length, c.name)
+    try {
+      const existing = await db.first(
+        'SELECT * FROM monthly_bills WHERE customer_id = ? AND month = ? AND year = ? LIMIT 1',
+        [c.id, month, year]
+      )
+      if (existing?.is_locked) { results.skipped++; continue }
+      await generateBill(c.id, month, year)
+      results.success++
+    } catch (e) {
+      results.errors.push({ name: c.name, msg: e.message })
+    }
+  }
+  return results
+}

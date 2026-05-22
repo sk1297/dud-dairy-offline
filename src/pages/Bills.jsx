@@ -7,7 +7,7 @@ import BottomPicker from '../components/BottomPicker.jsx'
 import usePullToRefresh from '../hooks/usePullToRefresh.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import { formatCurrency, getMonthYear, todayStr } from '../utils.js'
-import { getBills, generateBill, lockBill, unlockBill, deleteBill, getBillItems } from '../services/billService.js'
+import { getBills, generateBill, generateBillsForAll, lockBill, unlockBill, deleteBill, getBillItems } from '../services/billService.js'
 import { getCustomers } from '../services/customerService.js'
 import { addPayment, updatePayment, deletePayment, getPayments, getOutstanding } from '../services/paymentService.js'
 
@@ -57,6 +57,9 @@ export default function Bills() {
   const [genModal,    setGenModal]    = useState(false)
   const [genCustomer, setGenCustomer] = useState('all')
   const [genning,     setGenning]     = useState(false)
+  const [bulkModal, setBulkModal]   = useState(false)
+  const [bulkProgress, setBulkProgress] = useState(null)
+  const [bulkResult, setBulkResult] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -91,6 +94,22 @@ export default function Bills() {
       show(err.message, 'error')
     } finally {
       setGenning(false)
+    }
+  }
+
+  const handleBulkGenerate = async () => {
+    setBulkProgress({ current: 0, total: 0, name: '' })
+    setBulkResult(null)
+    try {
+      const result = await generateBillsForAll(selMonth, selYear, (current, total, name) => {
+        setBulkProgress({ current, total, name })
+      })
+      setBulkResult(result)
+      setBulkProgress(null)
+      load()
+    } catch (e) {
+      show(e.message, 'error')
+      setBulkProgress(null)
     }
   }
 
@@ -234,6 +253,9 @@ export default function Bills() {
               value={selYear}
               onChange={val=>setSelYear(parseInt(val))}
             />
+            <button className="btn btn-ghost btn-sm" onClick={() => { setBulkResult(null); setBulkModal(true) }}>
+              ⚡ सर्व बिले
+            </button>
             <button className="btn btn-primary btn-sm" onClick={()=>setGenModal(true)}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
               बिल बनवा
@@ -503,6 +525,62 @@ export default function Bills() {
           ))}
         </div>
       )}
+
+      {/* ── Bulk Generate Modal ── */}
+      <Modal isOpen={bulkModal} onClose={() => { if (!bulkProgress) { setBulkModal(false); setBulkResult(null) } }} title={`⚡ सर्व ग्राहकांचे बिल — ${MONTH_NAMES_MR[selMonth-1]} ${selYear}`}
+        footer={
+          bulkResult ? (
+            <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => { setBulkModal(false); setBulkResult(null) }}>बंद करा</button>
+          ) : bulkProgress ? null : (
+            <>
+              <button className="btn btn-ghost" onClick={() => setBulkModal(false)}>रद्द</button>
+              <button className="btn btn-primary" onClick={handleBulkGenerate}>⚡ सर्व बिले बनवा</button>
+            </>
+          )
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '4px 0' }}>
+          {!bulkProgress && !bulkResult && (
+            <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '12px 14px', fontSize: 13, color: 'var(--text)', lineHeight: 1.6 }}>
+              सर्व <strong>सक्रिय ग्राहकांचे</strong> {MONTH_NAMES_MR[selMonth-1]} {selYear} महिन्याचे बिल एकत्र तयार होईल.<br/>
+              <span style={{ color: 'var(--text2)', fontSize: 12 }}>लॉक केलेली बिले वगळली जातील. आधीचे मसुदे बिल बदलले जातील.</span>
+            </div>
+          )}
+
+          {bulkProgress && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', padding: '8px 0' }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>बिले तयार होत आहेत...</div>
+              <div style={{ width: '100%', background: 'var(--surface2)', borderRadius: 20, height: 10, overflow: 'hidden' }}>
+                <div style={{ height: '100%', borderRadius: 20, background: 'var(--accent)', transition: 'width 0.3s', width: bulkProgress.total > 0 ? `${(bulkProgress.current / bulkProgress.total) * 100}%` : '0%' }} />
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text2)' }}>{bulkProgress.current} / {bulkProgress.total} — {bulkProgress.name}</div>
+            </div>
+          )}
+
+          {bulkResult && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 10, padding: '12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--green)' }}>{bulkResult.success}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text2)' }}>बिले तयार</div>
+                </div>
+                <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 10, padding: '12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--yellow)' }}>{bulkResult.skipped}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text2)' }}>वगळले (लॉक)</div>
+                </div>
+              </div>
+              {bulkResult.errors.length > 0 && (
+                <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--red)', marginBottom: 6 }}>⚠️ {bulkResult.errors.length} त्रुटी</div>
+                  {bulkResult.errors.map((e, i) => (
+                    <div key={i} style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 3 }}>{e.name}: {e.msg}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </Modal>
 
       {/* ── Payment Modal ── */}
       <Modal isOpen={payModal} onClose={()=>setPayModal(false)} title="पैसे जमा नोंद करा"

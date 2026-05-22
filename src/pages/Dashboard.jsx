@@ -32,6 +32,7 @@ export default function Dashboard() {
   const [data, setData] = useState(null)
   const [recentActivity, setRecentActivity] = useState([])
   const [productBreakdown, setProductBreakdown] = useState([])
+  const [alerts, setAlerts] = useState([])
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [now, setNow] = useState(new Date())
@@ -122,6 +123,72 @@ export default function Dashboard() {
 
       setData({ customersServed, totalCustomers: activeCustomers.length, paymentsToday, totalOutstanding })
       setRecentActivity(activity)
+
+      // ── Smart alerts ──────────────────────────────────────────────────────
+      const smartAlerts = []
+      const todayDate = new Date()
+
+      // 1. 30+ day outstanding customers
+      const outstandingCustomers = activeCustomers.filter(c => {
+        const custPaid   = allPayments.filter(p => p.customer_id === c.id).reduce((s, p) => s + (p.amount || 0), 0)
+        const custBilled = bills.filter(b => b.customer_id === c.id).reduce((s, b) => s + (b.total_amount || 0), 0)
+        const due = custBilled - custPaid
+        if (due <= 0) return false
+        // Check oldest unpaid bill age
+        const unpaidBills = bills.filter(b => b.customer_id === c.id && b.amount_due > 0)
+          .sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month)
+        if (!unpaidBills.length) return false
+        const oldest = unpaidBills[0]
+        const billDate = new Date(oldest.year, oldest.month - 1, 1)
+        const days = Math.floor((todayDate - billDate) / 86400000)
+        return days >= 30
+      })
+      if (outstandingCustomers.length > 0) {
+        smartAlerts.push({
+          type: 'warning',
+          icon: '⚠️',
+          title: `${outstandingCustomers.length} ग्राहकांची 30+ दिवस थकबाकी`,
+          sub: outstandingCustomers.slice(0, 3).map(c => c.name).join(', ') + (outstandingCustomers.length > 3 ? '...' : ''),
+          action: { label: 'पाहा', path: '/bills', state: { openOutstandingTab: true } },
+          color: 'var(--red)', bg: 'rgba(239,68,68,0.07)', border: 'rgba(239,68,68,0.25)',
+        })
+      }
+
+      // 2. Month-end reminder — last 3 days of month, bills not generated
+      const dayOfMonth = todayDate.getDate()
+      const daysInMonth = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0).getDate()
+      const thisMonth = todayDate.getMonth() + 1
+      const thisYear  = todayDate.getFullYear()
+      if (dayOfMonth >= daysInMonth - 2) {
+        const missingBills = activeCustomers.filter(c =>
+          !bills.find(b => b.customer_id === c.id && b.month === thisMonth && b.year === thisYear)
+        )
+        if (missingBills.length > 0) {
+          smartAlerts.push({
+            type: 'info',
+            icon: '📋',
+            title: `महिना संपत आहे — ${missingBills.length} बिले बाकी`,
+            sub: 'या महिन्याची बिले अजून बनवली नाहीत',
+            action: { label: 'बिले बनवा', path: '/bills' },
+            color: 'var(--yellow)', bg: 'rgba(245,158,11,0.07)', border: 'rgba(245,158,11,0.25)',
+          })
+        }
+      }
+
+      // 3. Today's deliveries incomplete — show if afternoon/evening and morning still pending
+      const morningPending = deliveries.filter(d => d.session === 'morning' && d.status === 'pending').length
+      if (morningPending > 0 && todayDate.getHours() >= 10) {
+        smartAlerts.push({
+          type: 'info',
+          icon: '☀️',
+          title: `${morningPending} सकाळची डिलिव्हरी बाकी`,
+          sub: 'आजची सकाळची नोंद अद्याप पूर्ण झाली नाही',
+          action: { label: 'डिलिव्हरी', path: '/delivery' },
+          color: 'var(--accent)', bg: 'rgba(16,185,129,0.07)', border: 'rgba(16,185,129,0.25)',
+        })
+      }
+
+      setAlerts(smartAlerts)
     } catch (e) {
       console.error(e)
     } finally {
@@ -308,6 +375,31 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        {/* ── Smart Alerts ─────────────────────────────────────────────────── */}
+        {alerts.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: mounted ? 1 : 0, transition: 'opacity 0.4s ease 0.2s' }}>
+            {alerts.map((alert, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '11px 14px',
+                background: alert.bg, border: `1px solid ${alert.border}`, borderRadius: 12,
+              }}>
+                <span style={{ fontSize: 18, flexShrink: 0 }}>{alert.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: alert.color }}>{alert.title}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{alert.sub}</div>
+                </div>
+                <button
+                  onClick={() => navigate(alert.action.path, alert.action.state ? { state: alert.action.state } : undefined)}
+                  style={{ background: alert.color, border: 'none', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', color: '#fff', fontSize: 12, fontWeight: 700, flexShrink: 0 }}
+                >
+                  {alert.action.label}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* ── Quick Actions ─────────────────────────────────────────────────── */}
         <div>

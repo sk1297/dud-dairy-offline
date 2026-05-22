@@ -814,9 +814,24 @@ export default function CustomerProfile() {
           </div>
         )}
 
-        {/* ── Delivery Tab ── */}
+        {/* ── Delivery Tab — Calendar View ── */}
         {tab === 1 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Legend */}
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              {[
+                { color: '#10b981', bg: 'rgba(16,185,129,0.15)', label: 'दिले' },
+                { color: '#3b82f6', bg: 'rgba(59,130,246,0.15)', label: 'कमी' },
+                { color: '#f59e0b', bg: 'rgba(245,158,11,0.15)', label: 'बाकी' },
+                { color: '#64748b', bg: 'rgba(100,116,139,0.15)', label: 'सुट्टी' },
+              ].map(l => (
+                <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 3, background: l.bg, border: `1.5px solid ${l.color}` }} />
+                  <span style={{ fontSize: 11, color: 'var(--text2)' }}>{l.label}</span>
+                </div>
+              ))}
+            </div>
+
             {deliveries.length === 0 ? (
               <div className="empty">
                 <div className="empty-icon">🥛</div>
@@ -824,43 +839,97 @@ export default function CustomerProfile() {
               </div>
             ) : Object.entries(deliveriesByMonth).sort((a,b) => b[0].localeCompare(a[0])).map(([monthKey, monthDels]) => {
               const [y, m] = monthKey.split('-').map(Number)
+              const daysInMonth = new Date(y, m, 0).getDate()
+              const firstDow    = new Date(y, m - 1, 1).getDay() // 0=Sun
+
+              // Build day map: day → { morning, evening } status
+              const dayMap = {}
+              for (const d of monthDels) {
+                const day = parseInt(d.date.slice(8))
+                if (!dayMap[day]) dayMap[day] = {}
+                dayMap[day][d.session] = d.status
+              }
+
               const delivered = monthDels.filter(d => d.status === 'delivered' || d.status === 'partial')
               const totalQty  = delivered.reduce((s, d) => s + (d.qty || 0), 0)
+
+              // colour for a status
+              const statusColor = (s) => s === 'delivered' ? '#10b981' : s === 'partial' ? '#3b82f6' : s === 'pending' ? '#f59e0b' : s === 'skip' ? '#475569' : null
+              const statusBg    = (s) => s === 'delivered' ? 'rgba(16,185,129,0.15)' : s === 'partial' ? 'rgba(59,130,246,0.15)' : s === 'pending' ? 'rgba(245,158,11,0.15)' : s === 'skip' ? 'rgba(100,116,139,0.12)' : 'transparent'
+
               return (
-                <div key={monthKey}>
+                <div key={monthKey} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
                   {/* Month header */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent)' }}>
                       {MONTH_NAMES_MR[m - 1]} {y}
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--text2)' }}>
-                      {delivered.length} दिवस • {totalQty.toFixed(1)} एकूण
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>{delivered.length} दिवस</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{totalQty % 1 === 0 ? totalQty : totalQty.toFixed(1)} एकूण</span>
                     </div>
                   </div>
-                  {/* Delivery rows */}
-                  <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-                    {monthDels.sort((a, b) => b.date.localeCompare(a.date) || (a.session === 'morning' ? -1 : 1)).map((d, i) => {
-                      const prod = products.find(p => p.id === d.product_id)
-                      const statusColors = { delivered: 'var(--green)', pending: 'var(--yellow)', skip: 'var(--text2)', partial: 'var(--blue)' }
-                      const statusLabels = { delivered: 'दिले', pending: 'बाकी', skip: 'सुट्टी', partial: 'कमी' }
+
+                  {/* Weekday headers */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', padding: '6px 10px 2px' }}>
+                    {['र','सो','मं','बु','गु','शु','श'].map(d => (
+                      <div key={d} style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, color: 'var(--text2)', paddingBottom: 4 }}>{d}</div>
+                    ))}
+                  </div>
+
+                  {/* Calendar grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, padding: '0 10px 10px' }}>
+                    {/* Empty cells for offset */}
+                    {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
+
+                    {/* Day cells */}
+                    {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+                      const sessions = dayMap[day] || {}
+                      const mStatus  = sessions.morning
+                      const eStatus  = sessions.evening
+                      const hasMorning = !!mStatus
+                      const hasEvening = !!eStatus
+                      const mColor  = statusColor(mStatus)
+                      const eColor  = statusColor(eStatus)
+                      const mBg     = statusBg(mStatus)
+                      const eBg     = statusBg(eStatus)
+                      const today   = new Date()
+                      const isToday = today.getDate() === day && today.getMonth() + 1 === m && today.getFullYear() === y
+
                       return (
-                        <div key={d.id || i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderBottom: i < monthDels.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                          <div style={{ width: 36, fontSize: 13, color: 'var(--text2)', fontWeight: 600 }}>
-                            {d.date.slice(8)}
-                            <div style={{ fontSize: 10 }}>{d.session === 'morning' ? '☀️' : '🌙'}</div>
+                        <div key={day} style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center',
+                          gap: 2, padding: '4px 2px',
+                          borderRadius: 8,
+                          background: isToday ? 'rgba(16,185,129,0.08)' : 'transparent',
+                          border: isToday ? '1px solid rgba(16,185,129,0.3)' : '1px solid transparent',
+                        }}>
+                          <div style={{ fontSize: 11, fontWeight: isToday ? 800 : 500, color: isToday ? 'var(--accent)' : 'var(--text2)' }}>
+                            {day}
                           </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
-                              {prod?.name || 'दूध'}
-                              {d.qty > 0 && <span style={{ color: 'var(--text2)', fontWeight: 400, marginLeft: 6 }}>— {d.qty}{prod?.unit || 'L'}</span>}
-                            </div>
+                          {/* Two tiny session dots — top=morning, bottom=evening */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <div style={{
+                              width: 14, height: 6, borderRadius: 3,
+                              background: hasMorning ? mBg : 'transparent',
+                              border: hasMorning ? `1px solid ${mColor}` : '1px solid var(--border)',
+                            }} />
+                            <div style={{
+                              width: 14, height: 6, borderRadius: 3,
+                              background: hasEvening ? eBg : 'transparent',
+                              border: hasEvening ? `1px solid ${eColor}` : '1px solid var(--border)',
+                            }} />
                           </div>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: statusColors[d.status] || 'var(--text2)' }}>
-                            {statusLabels[d.status] || d.status}
-                          </span>
                         </div>
                       )
                     })}
+                  </div>
+
+                  {/* Session legend for this month */}
+                  <div style={{ padding: '0 14px 10px', display: 'flex', gap: 6, fontSize: 11, color: 'var(--text2)' }}>
+                    <span>☀️ सकाळ (वरचा)</span>
+                    <span style={{ margin: '0 4px', color: 'var(--border)' }}>•</span>
+                    <span>🌙 संध्या (खालचा)</span>
                   </div>
                 </div>
               )

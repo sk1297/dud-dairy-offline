@@ -240,7 +240,7 @@ export default function Reports() {
 
   // ── render ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'var(--nav-h)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px))' }}>
       <Header title="अहवाल" icon="📊" subtitle="उत्पन्न, डिलिव्हरी व थकबाकी विश्लेषण" onBack={() => navigate('/more')} />
 
       <div style={{ padding: '12px 16px 0' }}>
@@ -412,6 +412,36 @@ export default function Reports() {
                         </div>
                       ))}
                     </div>
+                  )}
+
+                  {/* Share monthly summary */}
+                  {monthly.totalBilled > 0 && (
+                    <button
+                      onClick={() => {
+                        const lines = [
+                          `📊 *मासिक अहवाल — ${MR_MONTHS[selMonth-1]} ${selYear}*`,
+                          `━━━━━━━━━━━━━━━━━━`,
+                          `🥛 एकूण दूध: ${monthly.totalLiters.toFixed(1)} L`,
+                          `📅 सक्रिय दिवस: ${monthly.activeDays}`,
+                          `📊 दैनिक सरासरी: ${monthly.avgPerDay.toFixed(1)} L/दिवस`,
+                          ``,
+                          `🧾 एकूण बिल: ₹${monthly.totalBilled.toFixed(0)}`,
+                          `✅ जमा: ₹${monthly.totalCollect.toFixed(0)}`,
+                          `⚠️ बाकी थकबाकी: ₹${monthly.totalOut.toFixed(0)}`,
+                          ``,
+                          `वसुली: ${monthly.totalBilled > 0 ? ((monthly.totalCollect/monthly.totalBilled)*100).toFixed(1) : 0}%`,
+                        ].join('\n')
+                        if (navigator.share) {
+                          navigator.share({ title: `अहवाल ${MR_MONTHS[selMonth-1]} ${selYear}`, text: lines }).catch(() => {})
+                        } else {
+                          navigator.clipboard?.writeText(lines)
+                        }
+                      }}
+                      style={{ width: '100%', padding: '12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, cursor: 'pointer', color: 'var(--accent)', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                      मासिक सारांश शेअर करा
+                    </button>
                   )}
 
                   {monthly.totalBilled === 0 && (
