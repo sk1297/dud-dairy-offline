@@ -48,7 +48,8 @@ export async function shareBillAsPDF({ customer, bill, items, dairyName, area })
   y = 28
 
   // ── Status ribbon ────────────────────────────────────────────────────────────
-  setFill(bill.is_locked ? 6, 95, 70 : 180, 120, 0)
+  const [rr, rg, rb] = bill.is_locked ? [6, 95, 70] : [180, 120, 0]
+  setFill(rr, rg, rb)
   doc.rect(0, y, W, 7, 'F')
   setFont('bold', 8)
   setColor(255, 255, 255)
