@@ -22,7 +22,9 @@
   --text2:    #94a3b8;
   --radius:   12px;
   --nav-h:    64px;
-  --sat:      0px; /* status-bar height — overwritten by JS in main.jsx on Android */
+  --sat:      28px; /* Android status bar height fallback (24-28dp on all devices).
+                       JS in main.jsx tries to measure the exact value via env()
+                       and overrides this. 28px is safe even if env() returns 0. */
 }
 
 *, *::before, *::after {

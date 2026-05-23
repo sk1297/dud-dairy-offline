@@ -21,10 +21,10 @@ async function start() {
       await StatusBar.setStyle({ style: Style.Dark }) // white icons on dark header
     } catch (_) { /* ignore on older Android */ }
 
-    // Measure actual status bar height via JS probe and store as --sat.
-    // This is the most reliable approach: env(safe-area-inset-top) is
-    // guaranteed to work when overlay=true, and reading it via getBoundingClientRect
-    // gives us a concrete px value we can use as a CSS variable everywhere.
+    // Try to measure exact status bar height via env(safe-area-inset-top).
+    // If env() works (returns > 0), use that exact value.
+    // If env() returns 0 (common on some Android WebViews), the CSS default
+    // of --sat: 28px acts as the safe fallback — no override needed.
     try {
       await new Promise(r => requestAnimationFrame(r))
       const probe = document.createElement('div')
@@ -34,9 +34,11 @@ async function start() {
       const sat = Math.round(probe.getBoundingClientRect().top)
       probe.remove()
       if (sat > 0) {
+        // env() gave us an exact value — use it instead of the 28px fallback
         document.documentElement.style.setProperty('--sat', sat + 'px')
       }
-    } catch (_) { /* keep --sat at default 0px */ }
+      // if sat === 0: env() not supported on this device, CSS --sat: 28px stays
+    } catch (_) { /* CSS --sat: 28px fallback stays */ }
   }
 
   await initDB()
