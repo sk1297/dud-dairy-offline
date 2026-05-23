@@ -305,8 +305,8 @@ export default function Bills() {
     const key = item.product_name || 'दूध'
     if (!acc[key]) acc[key] = { items: [], totalQty: 0, totalAmt: 0, unit: item.unit || 'L' }
     acc[key].items.push(item)
-    acc[key].totalQty += item.qty
-    acc[key].totalAmt += item.amount
+    acc[key].totalQty += Number(item.qty)  || 0
+    acc[key].totalAmt += Number(item.amount) || 0
     return acc
   }, {})
 
@@ -1175,8 +1175,8 @@ export default function Bills() {
                   <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', padding:'5px 10px', background:i%2===0?'var(--surface2)':'transparent', borderRadius:6, marginBottom:2, fontSize:12 }}>
                     <span style={{ color:'var(--text2)' }}>{item.date.slice(5).replace('-','/')}</span>
                     <span style={{ color:'var(--text2)' }}>{item.session==='morning'?'☀️ सकाळ':'🌙 संध्या'}</span>
-                    <span style={{ color:'var(--text)' }}>{item.qty}{group.unit} × ₹{item.rate}</span>
-                    <span style={{ fontWeight:700, color:'var(--text)', textAlign:'right' }}>₹{item.amount?.toFixed(0)}</span>
+                    <span style={{ color:'var(--text)' }}>{Number(item.qty || 0).toFixed(1)}{group.unit} × ₹{item.rate}</span>
+                    <span style={{ fontWeight:700, color:'var(--text)', textAlign:'right' }}>₹{Number(item.amount || 0).toFixed(0)}</span>
                   </div>
                 ))}
               </div>

@@ -23,8 +23,8 @@ function buildBillHTML({ customer, bill, items, dairyName, area }) {
     const k = item.product_name || 'दूध'
     if (!acc[k]) acc[k] = { items: [], totalQty: 0, totalAmt: 0, unit: item.unit || 'L', rate: item.rate }
     acc[k].items.push(item)
-    acc[k].totalQty += item.qty
-    acc[k].totalAmt += item.amount
+    acc[k].totalQty += Number(item.qty)   || 0
+    acc[k].totalAmt += Number(item.amount) || 0
     return acc
   }, {})
 
@@ -55,8 +55,8 @@ function buildBillHTML({ customer, bill, items, dairyName, area }) {
             <td>${item.date.slice(5).replace('-', '/')}</td>
             <td>${item.session === 'morning' ? 'सकाळ' : 'संध्या'}</td>
             <td>${item.rate}</td>
-            <td>${item.qty.toFixed(1)}${item.unit || 'L'}</td>
-            <td style="text-align:right;font-weight:700">${fmtCur(item.amount)}</td>
+            <td>${Number(item.qty || 0).toFixed(1)}${item.unit || 'L'}</td>
+            <td style="text-align:right;font-weight:700">${fmtCur(Number(item.amount || 0))}</td>
           </tr>
         `).join('')}
       </tbody>

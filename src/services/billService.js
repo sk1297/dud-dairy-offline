@@ -51,7 +51,7 @@ export async function generateBill(customer_id, month, year) {
   const items = delivered.map(d => {
     const pid     = d.product_id || customer.product_id
     const rate    = getRateForDelivery(pid, d.date)
-    const qty     = d.qty || 0
+    const qty     = Number(d.qty) || 0
     const amount  = qty * rate
     const product = productMap[pid]
     total_qty    += qty
