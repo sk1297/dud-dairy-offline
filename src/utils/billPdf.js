@@ -1,5 +1,7 @@
-// billPdf.js — Generate bill PDF using jsPDF and share via Capacitor Share
+// billPdf.js — Generate bill PDF via html2canvas (full Marathi/Unicode support)
+// Flow: build HTML template → render off-screen → html2canvas screenshot → jsPDF → share
 import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
 import { Capacitor } from '@capacitor/core'
 
 const MONTH_NAMES_MR = ['जानेवारी','फेब्रुवारी','मार्च','एप्रिल','मे','जून','जुलै','ऑगस्ट','सप्टेंबर','ऑक्टोबर','नोव्हेंबर','डिसेंबर']
@@ -7,212 +9,364 @@ const MONTH_NAMES_MR = ['जानेवारी','फेब्रुवार�
 function fmtDate(d) {
   const p = d.split('-'); return `${p[2]}/${p[1]}/${p[0]}`
 }
-
 function fmtCur(n) {
   return '₹' + (n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 }
 
-export async function shareBillAsPDF({ customer, bill, items, dairyName, area }) {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
-  const W = 210
-  const margin = 14
-  const contentW = W - margin * 2
-  let y = 0
-
-  // ── Color helpers ────────────────────────────────────────────────────────────
-  const setFill   = (r, g, b) => doc.setFillColor(r, g, b)
-  const setStroke = (r, g, b) => doc.setDrawColor(r, g, b)
-  const setColor  = (r, g, b) => doc.setTextColor(r, g, b)
-  const setFont   = (style, size) => { doc.setFontSize(size); doc.setFont('helvetica', style) }
-
-  // ── Header bar ───────────────────────────────────────────────────────────────
-  setFill(6, 95, 70)
-  doc.rect(0, 0, W, 28, 'F')
-
-  setFont('bold', 16)
-  setColor(255, 255, 255)
-  doc.text(dairyName || 'दूध डेअरी', margin, 11)
-
-  setFont('normal', 9)
-  setColor(209, 250, 229)
-  doc.text('दूध डेअरी व्यवस्थापन', margin, 17)
-
-  setFont('bold', 10)
-  setColor(255, 255, 255)
+// ── Build the bill HTML string ────────────────────────────────────────────────
+function buildBillHTML({ customer, bill, items, dairyName, area }) {
   const monthLabel = `${MONTH_NAMES_MR[bill.month - 1]} ${bill.year}`
-  doc.text('मासिक बिल', W - margin, 11, { align: 'right' })
-  setFont('normal', 9)
-  setColor(209, 250, 229)
-  doc.text(monthLabel, W - margin, 17, { align: 'right' })
-  doc.text(`दिनांक: ${fmtDate(new Date().toISOString().split('T')[0])}`, W - margin, 22, { align: 'right' })
-  y = 28
+  const today      = fmtDate(new Date().toISOString().split('T')[0])
 
-  // ── Status ribbon ────────────────────────────────────────────────────────────
-  const [rr, rg, rb] = bill.is_locked ? [6, 95, 70] : [180, 120, 0]
-  setFill(rr, rg, rb)
-  doc.rect(0, y, W, 7, 'F')
-  setFont('bold', 8)
-  setColor(255, 255, 255)
-  doc.text(bill.is_locked ? 'LOCKED BILL — FINAL' : 'DRAFT BILL — NOT FINAL', W / 2, y + 4.8, { align: 'center' })
-  y += 7
+  // Group items by product
+  const grouped = (items || []).reduce((acc, item) => {
+    const k = item.product_name || 'दूध'
+    if (!acc[k]) acc[k] = { items: [], totalQty: 0, totalAmt: 0, unit: item.unit || 'L', rate: item.rate }
+    acc[k].items.push(item)
+    acc[k].totalQty += item.qty
+    acc[k].totalAmt += item.amount
+    return acc
+  }, {})
 
-  // ── Customer info ────────────────────────────────────────────────────────────
-  y += 6
-  setFont('bold', 13)
-  setColor(17, 24, 39)
-  doc.text(customer.name, margin, y)
-  y += 6
-
-  setFont('normal', 9)
-  setColor(107, 114, 128)
-  const infoLine = [
-    customer.mobile ? `📱 ${customer.mobile}` : null,
-    area            ? `📍 ${area}` : null,
-    customer.address || null,
-  ].filter(Boolean).join('   ')
-  if (infoLine) { doc.text(infoLine, margin, y); y += 5 }
-  y += 4
-
-  // ── Divider ──────────────────────────────────────────────────────────────────
-  setStroke(229, 231, 235)
-  doc.setLineWidth(0.3)
-  doc.line(margin, y, W - margin, y)
-  y += 5
-
-  // ── Delivery items table ─────────────────────────────────────────────────────
-  if (items && items.length > 0) {
-    // Group by product
-    const grouped = items.reduce((acc, item) => {
-      const k = item.product_name || 'दूध'
-      if (!acc[k]) acc[k] = { items: [], totalQty: 0, totalAmt: 0, unit: item.unit || 'L', rate: item.rate }
-      acc[k].items.push(item)
-      acc[k].totalQty += item.qty
-      acc[k].totalAmt += item.amount
-      return acc
-    }, {})
-
-    const colX = [margin, margin + 22, margin + 46, margin + 68, margin + 100, margin + 130, margin + 155]
-    // col: Date | Session | Rate | Qty | Amount
-
-    for (const [prodName, g] of Object.entries(grouped)) {
-      // Product header
-      setFill(240, 253, 244)
-      doc.rect(margin, y, contentW, 7, 'F')
-      setFont('bold', 9)
-      setColor(6, 95, 70)
-      doc.text(`${prodName}`, margin + 2, y + 5)
-      setFont('bold', 9)
-      doc.text(`${g.totalQty.toFixed(1)}${g.unit}  =  ${fmtCur(g.totalAmt)}`, W - margin - 2, y + 5, { align: 'right' })
-      y += 7
-
-      // Column headers
-      setFill(249, 250, 251)
-      doc.rect(margin, y, contentW, 6, 'F')
-      setFont('bold', 7.5)
-      setColor(75, 85, 99)
-      const headers = ['तारीख', 'वेळ', 'दर (₹)', 'प्रमाण', 'रक्कम (₹)']
-      const hX      = [margin + 2, margin + 28, margin + 60, margin + 95, W - margin - 2]
-      const hAlign  = ['left','left','left','left','right']
-      headers.forEach((h, i) => doc.text(h, hX[i], y + 4.2, { align: hAlign[i] }))
-      y += 6
-
-      // Rows
-      const sorted = [...g.items].sort((a, b) => a.date.localeCompare(b.date) || (a.session === 'morning' ? -1 : 1))
-      sorted.forEach((item, idx) => {
-        if (y > 270) { doc.addPage(); y = 14 }
-        if (idx % 2 === 0) {
-          setFill(249, 250, 251)
-          doc.rect(margin, y, contentW, 5.5, 'F')
-        }
-        setFont('normal', 7.5)
-        setColor(55, 65, 81)
-        doc.text(item.date.slice(5).replace('-', '/'), hX[0], y + 3.8, { align: 'left' })
-        doc.text(item.session === 'morning' ? 'सकाळ' : 'संध्या', hX[1], y + 3.8)
-        doc.text(String(item.rate), hX[2], y + 3.8)
-        doc.text(`${item.qty.toFixed(1)}${item.unit}`, hX[3], y + 3.8)
-        setFont('bold', 7.5)
-        doc.text(fmtCur(item.amount), hX[4], y + 3.8, { align: 'right' })
-        y += 5.5
-      })
-      y += 4
-    }
+  // Sort each product's items by date + session
+  for (const g of Object.values(grouped)) {
+    g.items.sort((a, b) => a.date.localeCompare(b.date) || (a.session === 'morning' ? -1 : 1))
   }
 
-  // ── Summary box ──────────────────────────────────────────────────────────────
-  if (y > 230) { doc.addPage(); y = 14 }
-  y += 2
-  setStroke(229, 231, 235)
-  doc.setLineWidth(0.4)
-  doc.rect(margin, y, contentW, bill.prev_balance > 0 ? 38 : 30, 'S')
+  // Build delivery table rows HTML
+  const deliveryTables = Object.entries(grouped).map(([prodName, g]) => `
+    <div class="prod-header">
+      <span>${prodName}</span>
+      <span>${g.totalQty.toFixed(1)}${g.unit} = ${fmtCur(g.totalAmt)}</span>
+    </div>
+    <table class="delivery-table">
+      <thead>
+        <tr>
+          <th>तारीख</th>
+          <th>वेळ</th>
+          <th>दर (₹)</th>
+          <th>प्रमाण</th>
+          <th style="text-align:right">रक्कम (₹)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${g.items.map((item, idx) => `
+          <tr class="${idx % 2 === 0 ? 'row-even' : ''}">
+            <td>${item.date.slice(5).replace('-', '/')}</td>
+            <td>${item.session === 'morning' ? 'सकाळ' : 'संध्या'}</td>
+            <td>${item.rate}</td>
+            <td>${item.qty.toFixed(1)}${item.unit || 'L'}</td>
+            <td style="text-align:right;font-weight:700">${fmtCur(item.amount)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `).join('')
 
-  const sumRows = [
-    { label: 'एकूण बिल रक्कम', value: fmtCur(bill.total_amount), bold: false },
-    ...(bill.prev_balance > 0 ? [{ label: 'मागील थकबाकी', value: fmtCur(bill.prev_balance), bold: false, yellow: true }] : []),
-    ...(bill.payments_made > 0 ? [{ label: 'जमा पैसे', value: `− ${fmtCur(bill.payments_made)}`, bold: false, green: true }] : []),
+  // Summary rows
+  const summaryRows = [
+    { label: 'एकूण बिल रक्कम', value: fmtCur(bill.total_amount), cls: '' },
+    ...(bill.prev_balance > 0 ? [{ label: 'मागील थकबाकी (+)', value: fmtCur(bill.prev_balance), cls: 'yellow' }] : []),
+    ...(bill.payments_made > 0 ? [{ label: 'जमा पैसे (−)', value: `− ${fmtCur(bill.payments_made)}`, cls: 'green' }] : []),
   ]
 
-  sumRows.forEach((row, i) => {
-    const ry = y + 1 + i * 7
-    setFont(row.bold ? 'bold' : 'normal', 9)
-    setColor(row.yellow ? 180 : row.green ? 5 : 107, row.yellow ? 120 : row.green ? 150 : 114, row.yellow ? 0 : row.green ? 105 : 128)
-    doc.text(row.label, margin + 4, ry + 5)
-    setFont('bold', 9)
-    setColor(17, 24, 39)
-    doc.text(row.value, W - margin - 4, ry + 5, { align: 'right' })
-    if (i < sumRows.length - 1) {
-      setStroke(229, 231, 235)
-      doc.line(margin, ry + 7, W - margin, ry + 7)
+  const infoLine = [
+    customer.mobile  ? `📱 ${customer.mobile}` : null,
+    area             ? `📍 ${area}` : null,
+    customer.address || null,
+  ].filter(Boolean).join('   ')
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans Devanagari', 'Mangal', 'Arial Unicode MS', sans-serif;
+    background: #fff;
+    color: #111827;
+    width: 794px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* Header */
+  .header {
+    background: #065f46;
+    padding: 18px 24px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .header-left .dairy-name {
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: 0.3px;
+  }
+  .header-left .sub {
+    font-size: 12px;
+    color: #a7f3d0;
+    margin-top: 3px;
+  }
+  .header-right {
+    text-align: right;
+  }
+  .header-right .bill-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .header-right .bill-month {
+    font-size: 12px;
+    color: #a7f3d0;
+    margin-top: 2px;
+  }
+  .header-right .bill-date {
+    font-size: 11px;
+    color: #6ee7b7;
+    margin-top: 1px;
+  }
+
+  /* Status ribbon */
+  .status-ribbon {
+    padding: 6px 24px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.5px;
+  }
+  .ribbon-locked   { background: #065f46; }
+  .ribbon-unlocked { background: #b45309; }
+
+  /* Customer info */
+  .customer-section {
+    padding: 16px 24px 12px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .customer-name {
+    font-size: 20px;
+    font-weight: 800;
+    color: #065f46;
+    margin-bottom: 4px;
+  }
+  .customer-info {
+    font-size: 12px;
+    color: #6b7280;
+  }
+
+  /* Delivery tables */
+  .delivery-section {
+    padding: 0 24px 12px;
+  }
+  .prod-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f0fdf4;
+    border-left: 3px solid #065f46;
+    padding: 7px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #065f46;
+    margin-top: 12px;
+    margin-bottom: 0;
+  }
+  .delivery-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .delivery-table thead tr {
+    background: #f9fafb;
+  }
+  .delivery-table th {
+    padding: 6px 8px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    color: #4b5563;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .delivery-table td {
+    padding: 5px 8px;
+    color: #374151;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .delivery-table .row-even td {
+    background: #f9fafb;
+  }
+
+  /* Summary box */
+  .summary-section {
+    margin: 8px 24px 0;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 14px;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 13px;
+  }
+  .summary-row .label { color: #6b7280; }
+  .summary-row .value { font-weight: 700; color: #111827; }
+  .summary-row.yellow .label { color: #b45309; }
+  .summary-row.green  .label { color: #059669; }
+  .summary-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    background: #065f46;
+  }
+  .summary-total .label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #a7f3d0;
+  }
+  .summary-total .value {
+    font-size: 20px;
+    font-weight: 900;
+    color: #fff;
+  }
+
+  /* Footer */
+  .footer {
+    margin: 14px 24px 0;
+    padding-top: 10px;
+    border-top: 1px dashed #d1d5db;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: #9ca3af;
+    padding-bottom: 20px;
+  }
+</style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="dairy-name">${dairyName || 'दूध डेअरी'}</div>
+      <div class="sub">दूध डेअरी व्यवस्थापन</div>
+    </div>
+    <div class="header-right">
+      <div class="bill-title">मासिक बिल</div>
+      <div class="bill-month">${monthLabel}</div>
+      <div class="bill-date">दिनांक: ${today}</div>
+    </div>
+  </div>
+
+  <!-- Status ribbon -->
+  <div class="status-ribbon ${bill.is_locked ? 'ribbon-locked' : 'ribbon-unlocked'}">
+    ${bill.is_locked ? 'LOCKED BILL — FINAL' : 'DRAFT BILL — NOT FINAL'}
+  </div>
+
+  <!-- Customer info -->
+  <div class="customer-section">
+    <div class="customer-name">${customer.name}</div>
+    ${infoLine ? `<div class="customer-info">${infoLine}</div>` : ''}
+  </div>
+
+  <!-- Delivery tables -->
+  <div class="delivery-section">
+    ${deliveryTables || '<p style="padding:12px;color:#6b7280;font-size:12px;">या महिन्यात डिलिव्हरी नोंदी नाहीत.</p>'}
+  </div>
+
+  <!-- Summary -->
+  <div class="summary-section">
+    ${summaryRows.map(r => `
+      <div class="summary-row ${r.cls}">
+        <span class="label">${r.label}</span>
+        <span class="value">${r.value}</span>
+      </div>
+    `).join('')}
+    <div class="summary-total">
+      <span class="label">एकूण देणे (बाकी)</span>
+      <span class="value">${fmtCur(bill.amount_due)}</span>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>${dairyName || 'दूध डेअरी'} · बिल तयार: ${today} · हे बिल संगणकाद्वारे तयार केले आहे.</span>
+    <span>ग्राहकाची सही _______________</span>
+  </div>
+
+</body>
+</html>`
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
+export async function shareBillAsPDF({ customer, bill, items, dairyName, area }) {
+  // 1. Create a hidden off-screen container
+  const container = document.createElement('div')
+  container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;z-index:-1;background:#fff;'
+  container.innerHTML = buildBillHTML({ customer, bill, items, dairyName, area })
+  document.body.appendChild(container)
+
+  try {
+    // 2. Wait one frame for fonts/layout to settle
+    await new Promise(r => setTimeout(r, 150))
+
+    // 3. Screenshot with html2canvas
+    const canvas = await html2canvas(container, {
+      scale:           2,          // 2× for crisp text on retina/high-DPI
+      useCORS:         true,
+      backgroundColor: '#ffffff',
+      logging:         false,
+    })
+
+    // 4. Convert canvas to JPEG (smaller than PNG)
+    const imgData = canvas.toDataURL('image/jpeg', 0.92)
+
+    // 5. Create A4 PDF and fit the image to page width
+    const pdf    = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+    const pgW    = pdf.internal.pageSize.getWidth()   // 210mm
+    const pgH    = pdf.internal.pageSize.getHeight()  // 297mm
+    const imgW   = pgW
+    const imgH   = (canvas.height / canvas.width) * pgW
+
+    // If bill is taller than one page, add extra pages
+    let yOffset = 0
+    let remaining = imgH
+    while (remaining > 0) {
+      if (yOffset > 0) pdf.addPage()
+      pdf.addImage(imgData, 'JPEG', 0, -yOffset, imgW, imgH)
+      yOffset   += pgH
+      remaining -= pgH
     }
-  })
 
-  // Total due — highlighted row
-  const totalY = y + 1 + sumRows.length * 7
-  setFill(6, 95, 70)
-  doc.rect(margin, totalY, contentW, 10, 'F')
-  setFont('bold', 9)
-  setColor(209, 250, 229)
-  doc.text('एकूण देणे (बाकी)', margin + 4, totalY + 6.5)
-  setFont('bold', 13)
-  setColor(255, 255, 255)
-  doc.text(fmtCur(bill.amount_due), W - margin - 4, totalY + 6.5, { align: 'right' })
-  y = totalY + 14
+    // 6. Share or download
+    const filename = `bill-${customer.name.replace(/\s+/g, '-')}-${bill.month}-${bill.year}.pdf`
 
-  // ── Footer ───────────────────────────────────────────────────────────────────
-  y += 4
-  setStroke(209, 213, 219)
-  doc.setLineDash([2, 2])
-  doc.line(margin, y, W - margin, y)
-  doc.setLineDash([])
-  y += 6
-  setFont('normal', 7.5)
-  setColor(156, 163, 175)
-  doc.text(`${dairyName}  ·  बिल तयार: ${fmtDate(new Date().toISOString().split('T')[0])}  ·  हे बिल संगणकाद्वारे तयार केले आहे.`, margin, y)
-
-  // ── Signature line ───────────────────────────────────────────────────────────
-  setColor(156, 163, 175)
-  setFont('normal', 7.5)
-  doc.text('ग्राहकाची सही _______________', W - margin - 2, y, { align: 'right' })
-
-  // ── Share / Download ─────────────────────────────────────────────────────────
-  const filename = `bill-${customer.name.replace(/\s+/g, '-')}-${bill.month}-${bill.year}.pdf`
-
-  if (Capacitor.getPlatform() !== 'web') {
-    // Native: save to cache → share via Android share sheet (WhatsApp shows up)
-    const { Filesystem, Directory } = await import('@capacitor/filesystem')
-    const { Share } = await import('@capacitor/share')
-    const pdfBase64 = doc.output('datauristring').split(',')[1]
-    const result = await Filesystem.writeFile({
-      path:      filename,
-      data:      pdfBase64,
-      directory: Directory.Cache,
-    })
-    await Share.share({
-      title:       `बिल — ${customer.name} — ${MONTH_NAMES_MR[bill.month - 1]} ${bill.year}`,
-      url:         result.uri,
-      dialogTitle: 'बिल शेअर करा',
-    })
-  } else {
-    // Web: download directly
-    doc.save(filename)
+    if (Capacitor.getPlatform() !== 'web') {
+      const { Filesystem, Directory } = await import('@capacitor/filesystem')
+      const { Share }                 = await import('@capacitor/share')
+      const pdfBase64 = pdf.output('datauristring').split(',')[1]
+      const result    = await Filesystem.writeFile({
+        path:      filename,
+        data:      pdfBase64,
+        directory: Directory.Cache,
+      })
+      await Share.share({
+        title:       `बिल — ${customer.name} — ${MONTH_NAMES_MR[bill.month - 1]} ${bill.year}`,
+        url:         result.uri,
+        dialogTitle: 'बिल शेअर करा',
+      })
+    } else {
+      pdf.save(filename)
+    }
+  } finally {
+    // Always clean up the off-screen element
+    document.body.removeChild(container)
   }
 }
