@@ -278,6 +278,7 @@ export default function Dashboard() {
         zIndex: 40,
         background: 'var(--surface)', borderBottom: '1px solid var(--border)',
         padding: '0 16px',
+        paddingTop: 'var(--sat, env(safe-area-inset-top, 0px))',
         minHeight: 56,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
       }}>
