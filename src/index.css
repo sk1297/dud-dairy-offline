@@ -70,9 +70,10 @@ body {
   flex-direction: column;
   position: relative;
   background: var(--bg);
-  /* Status bar is opaque and does NOT overlay the WebView.
-     setOverlaysWebView(false) + windowOptOutEdgeToEdge ensure the
-     WebView viewport starts BELOW the status bar on all Android versions. */
+  /* Capacitor StatusBar.setOverlaysWebView(false) keeps the status bar
+     outside the WebView at runtime. env(safe-area-inset-top) acts as a
+     CSS-level safety net for any device where insets are still reported. */
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 /* ── OFFLINE BANNER ── */

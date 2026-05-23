@@ -2,15 +2,13 @@
 <resources>
 
     <!-- Base application theme — opaque system bars, no edge-to-edge.
-         android:windowOptOutEdgeToEdge opts out of Android 15's forced
-         edge-to-edge so the WebView viewport starts BELOW the status bar
-         and ABOVE the gesture nav bar — no safe-area CSS tricks needed. -->
+         The Capacitor StatusBar plugin calls setOverlaysWebView(false) at
+         runtime so the WebView viewport starts BELOW the status bar. -->
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.DarkActionBar">
         <item name="android:statusBarColor">#0f172a</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:navigationBarColor">#1e293b</item>
         <item name="android:windowLightNavigationBar">false</item>
-        <item name="android:windowOptOutEdgeToEdge">true</item>
     </style>
 
     <!-- Capacitor WebView activity (no action bar) -->
