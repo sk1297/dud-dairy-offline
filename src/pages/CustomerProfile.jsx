@@ -472,8 +472,17 @@ export default function CustomerProfile() {
     if (!validatePay()) return
     setSavingPay(true)
     try {
-      await addPayment({ customer_id: custId, bill_id: null, date: payForm.date, amount: parseFloat(payForm.amount), mode: payForm.mode, notes: payForm.notes })
-      show('पैसे जमा नोंद झाली', 'success')
+      const amount = parseFloat(payForm.amount)
+      await addPayment({ customer_id: custId, bill_id: null, date: payForm.date, amount, mode: payForm.mode, notes: payForm.notes })
+
+      // WhatsApp receipt if customer has mobile
+      if (customer?.mobile) {
+        const MODES = { cash: 'रोख', upi: 'UPI', bank: 'बँक', cheque: 'चेक' }
+        const receipt = `✅ पावती — ${dairyName || 'दूध डेअरी'}\n\nनमस्कार ${customer.name} जी,\nआपले पैसे मिळाले.\n\n💰 रक्कम: ₹${amount.toLocaleString('en-IN')}\n📅 तारीख: ${payForm.date}\n💳 पद्धत: ${MODES[payForm.mode] || payForm.mode}${payForm.notes ? `\n📝 नोंद: ${payForm.notes}` : ''}\n\nधन्यवाद! 🙏`
+        window.open(`https://wa.me/91${customer.mobile}?text=${encodeURIComponent(receipt)}`, '_blank')
+      }
+
+      show('पैसे जमा नोंद झाली ✓', 'success')
       setPayModal(false)
       setPayForm({ amount: '', mode: 'cash', notes: '', date: todayStr() })
       load()

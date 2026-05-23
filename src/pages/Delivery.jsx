@@ -835,6 +835,41 @@ export default function Delivery() {
             </div>
           )
         })}
+
+        {/* ── Session summary strip ── */}
+        {!loading && filteredCustomers.length > 0 && (() => {
+          const deliveredKeys  = Object.values(deliveries).filter(d => d.date === date && d.session === session && (d.status === 'delivered' || d.status === 'partial'))
+          const totalLitres    = deliveredKeys.reduce((s, d) => s + (d.qty || 0), 0)
+          const totalCustomers = new Set(deliveredKeys.map(d => d.customer_id)).size
+          const totalRevenue   = deliveredKeys.reduce((s, d) => {
+            const c = customers.find(cu => cu.id === d.customer_id)
+            return s + (d.qty || 0) * (c?.rate || 0)
+          }, 0)
+          const pending = filteredCustomers.filter(c => {
+            const key = `${c.id}_${c.product_id || 1}_${session}`
+            return !deliveries[key]
+          }).length
+          return (
+            <div style={{ margin: '4px 0 8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ padding: '8px 14px', background: 'rgba(0,0,0,0.1)', borderBottom: '1px solid var(--border)', fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                {session === 'morning' ? '☀️ सकाळ' : '🌙 संध्याकाळ'} सत्र सारांश — {date}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '10px 8px' }}>
+                {[
+                  { label: 'एकूण लिटर', value: `${totalLitres % 1 === 0 ? totalLitres : totalLitres.toFixed(1)} L`, color: 'var(--accent)' },
+                  { label: 'ग्राहक दिले', value: totalCustomers, color: 'var(--green)' },
+                  { label: 'अंदाज रक्कम', value: `₹${Math.round(totalRevenue).toLocaleString('en-IN')}`, color: 'var(--text)' },
+                  { label: 'बाकी नोंद', value: pending, color: pending > 0 ? 'var(--yellow)' : 'var(--green)' },
+                ].map((s, i) => (
+                  <div key={i} style={{ textAlign: 'center', borderRight: i < 3 ? '1px solid var(--border)' : 'none' }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: s.color }}>{s.value}</div>
+                    <div style={{ fontSize: 9, color: 'var(--text2)', marginTop: 2 }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
       </div>
 
       {/* Undo bar — shown for 12s after mark-all */}

@@ -61,11 +61,17 @@ export default function Bills() {
   const [bulkProgress, setBulkProgress] = useState(null)
   const [bulkResult, setBulkResult] = useState(null)
 
+  const [dairyName, setDairyName] = useState('')
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [b, c, p, o] = await Promise.all([getBills(), getCustomers(), getPayments(), getOutstanding()])
+      const [b, c, p, o, setting] = await Promise.all([
+        getBills(), getCustomers(), getPayments(), getOutstanding(),
+        import('../db/database.js').then(m => m.default.first("SELECT value FROM settings WHERE key='dairy_name' LIMIT 1")),
+      ])
       setBills(b); setCustomers(c); setPayments(p); setOutstanding(o)
+      if (setting?.value) setDairyName(setting.value)
     } finally {
       setLoading(false)
     }
@@ -179,15 +185,19 @@ export default function Bills() {
     if (!validatePay()) return
     setSavingPay(true)
     try {
-      await addPayment({
-        customer_id: parseInt(payForm.customer_id),
-        bill_id: null,
-        date: payForm.date,
-        amount: parseFloat(payForm.amount),
-        mode: payForm.mode,
-        notes: payForm.notes,
-      })
-      show('पैसे जमा नोंद झाली', 'success')
+      const custId = parseInt(payForm.customer_id)
+      const amount = parseFloat(payForm.amount)
+      await addPayment({ customer_id: custId, bill_id: null, date: payForm.date, amount, mode: payForm.mode, notes: payForm.notes })
+
+      // Offer WhatsApp receipt if customer has mobile
+      const cust = customers.find(c => c.id === custId)
+      if (cust?.mobile) {
+        const MODES = { cash: 'रोख', upi: 'UPI', bank: 'बँक', cheque: 'चेक' }
+        const receipt = `✅ पावती — ${dairyName || 'दूध डेअरी'}\n\nनमस्कार ${cust.name} जी,\nआपले पैसे मिळाले.\n\n💰 रक्कम: ${formatCurrency(amount)}\n📅 तारीख: ${payForm.date}\n💳 पद्धत: ${MODES[payForm.mode] || payForm.mode}${payForm.notes ? `\n📝 नोंद: ${payForm.notes}` : ''}\n\nधन्यवाद! 🙏`
+        window.open(`https://wa.me/91${cust.mobile}?text=${encodeURIComponent(receipt)}`, '_blank')
+      }
+
+      show('पैसे जमा नोंद झाली ✓', 'success')
       setPayModal(false)
       setPayForm({ customer_id: '', amount: '', mode: 'cash', notes: '', date: todayStr() })
       load()
@@ -493,34 +503,57 @@ export default function Bills() {
               <div className="empty-desc">सर्व पैसे जमा झाले आहेत</div>
             </div>
           ) : outstanding.map((c,i)=>(
-            <div key={c.id} onClick={()=>navigate(`/customers/${c.id}`)} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:14, boxShadow:'0 1px 6px rgba(0,0,0,0.15)', cursor:'pointer', WebkitTapHighlightColor:'transparent' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:7 }}>
-                    <span style={{ fontSize:11, fontWeight:800, color:'var(--text2)', background:'var(--surface2)', borderRadius:6, padding:'2px 7px', flexShrink:0 }}>#{i+1}</span>
-                    <span style={{ fontSize:15, fontWeight:700, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.name}</span>
+            <div key={c.id} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, overflow:'hidden', boxShadow:'0 1px 6px rgba(0,0,0,0.15)' }}>
+              <div style={{ padding:14, cursor:'pointer' }} onClick={()=>navigate(`/customers/${c.id}`)}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                      <span style={{ fontSize:11, fontWeight:800, color:'var(--text2)', background:'var(--surface2)', borderRadius:6, padding:'2px 7px', flexShrink:0 }}>#{i+1}</span>
+                      <span style={{ fontSize:15, fontWeight:700, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.name}</span>
+                    </div>
+                    <div style={{ fontSize:11, color:'var(--text2)', marginTop:5 }}>
+                      बिल {formatCurrency(c.totalBilled)}
+                      <span style={{ margin:'0 5px', color:'var(--border)' }}>·</span>
+                      <span style={{ color:'var(--green)' }}>जमा {formatCurrency(c.totalPaid)}</span>
+                    </div>
                   </div>
-                  <div style={{ fontSize:11, color:'var(--text2)', marginTop:5 }}>
-                    बिल {formatCurrency(c.totalBilled)}
-                    <span style={{ margin:'0 5px', color:'var(--border)' }}>·</span>
-                    <span style={{ color:'var(--green)' }}>जमा {formatCurrency(c.totalPaid)}</span>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+                    <div style={{ textAlign:'right' }}>
+                      <div style={{ fontSize:18, fontWeight:900, color:'var(--red)' }}>{formatCurrency(c.outstanding)}</div>
+                      <div style={{ fontSize:10, color:'var(--text2)', marginTop:2 }}>थकबाकी</div>
+                    </div>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                   </div>
                 </div>
-                <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-                  <div style={{ textAlign:'right' }}>
-                    <div style={{ fontSize:18, fontWeight:900, color:'var(--red)' }}>{formatCurrency(c.outstanding)}</div>
-                    <div style={{ fontSize:10, color:'var(--text2)', marginTop:2 }}>थकबाकी</div>
+                {c.totalBilled>0 && (
+                  <div style={{ background:'var(--surface2)', borderRadius:20, height:6, overflow:'hidden' }}>
+                    <div style={{ height:'100%', borderRadius:20, background:`linear-gradient(to right, var(--green), var(--accent))`, width:`${Math.min(100,(c.totalPaid/c.totalBilled)*100)}%`, transition:'width 0.4s' }} />
                   </div>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                </div>
+                )}
               </div>
-              {c.totalBilled>0 && (
-                <div style={{ background:'var(--surface2)', borderRadius:20, height:6, overflow:'hidden' }}>
-                  <div style={{ height:'100%', borderRadius:20, background:`linear-gradient(to right, var(--green), var(--accent))`, width:`${Math.min(100,(c.totalPaid/c.totalBilled)*100)}%`, transition:'width 0.4s' }} />
-                </div>
-              )}
+              {/* Action row */}
+              <div style={{ borderTop:'1px solid var(--border)', background:'rgba(0,0,0,0.08)', padding:'7px 12px', display:'flex', gap:8 }}>
+                <button
+                  className="btn btn-primary btn-sm"
+                  style={{ flex:1 }}
+                  onClick={e => { e.stopPropagation(); setPayForm(p=>({...p, customer_id:String(c.id), amount:String(c.outstanding)})); setPayModal(true) }}
+                >
+                  💰 पैसे जमा
+                </button>
+                {c.mobile && (
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ color:'#25d366', borderColor:'rgba(37,211,102,0.35)', flexShrink:0 }}
+                    onClick={e => {
+                      e.stopPropagation()
+                      const msg = `🙏 नमस्कार ${c.name} जी,\n\nआपल्या खात्यावर थकबाकी आहे:\n💰 थकबाकी: ${formatCurrency(c.outstanding)}\n\nकृपया लवकरात लवकर पैसे जमा करावेत.\n\nधन्यवाद!\n— ${dairyName}`
+                      window.open(`https://wa.me/91${c.mobile}?text=${encodeURIComponent(msg)}`, '_blank')
+                    }}
+                  >
+                    💬 WhatsApp आठवण
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
