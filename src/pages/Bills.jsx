@@ -216,7 +216,7 @@ export default function Bills() {
   }, {})
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', minHeight:'100dvh', background:'var(--bg)', paddingBottom:'var(--nav-h)' }}>
+    <div style={{ display:'flex', flexDirection:'column', minHeight:'100dvh', background:'var(--bg)', paddingBottom:'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px)' }}>
       <Header
         title="बिल व पैसे"
         icon="📋"
