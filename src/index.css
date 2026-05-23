@@ -70,9 +70,10 @@ body {
   flex-direction: column;
   position: relative;
   background: var(--bg);
-  /* Status bar safe area is handled by .header below — NOT here.
-     Putting it here causes the padding to scroll away with the page,
-     making sticky headers snap to top:0 = behind the status bar. */
+  /* Android 15+ enforces edge-to-edge — status bar is transparent and
+     the WebView starts from the very top. env(safe-area-inset-top) gives
+     the actual status bar height so content is pushed below it. */
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 /* ── OFFLINE BANNER ── */
@@ -135,7 +136,7 @@ body {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch; /* smooth momentum scroll in WebView */
-  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 24px);
 }
 
 /* ── BOTTOM NAV ── */

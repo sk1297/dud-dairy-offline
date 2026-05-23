@@ -681,7 +681,7 @@ export default function Help() {
   if (activeSection) {
     const sec = SECTIONS.find(s => s.id === activeSection)
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 24px)' }}>
         <Header
           title={sec.title}
           subtitle={sec.sub}
@@ -696,7 +696,7 @@ export default function Help() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 24px)' }}>
       <Header title="मदत व माहिती" icon="📖" subtitle="अॅप कसे वापरायचे" />
       <div style={{ padding: 16 }}>
 

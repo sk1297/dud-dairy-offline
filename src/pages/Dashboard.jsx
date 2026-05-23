@@ -297,7 +297,7 @@ export default function Dashboard() {
       </div>
 
       {/* flex:1 + minHeight:0 lets this div fill remaining height and scroll */}
-      <div ref={dashRef} style={{ flex: 1, minHeight: 0, padding: 16, paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px)', display: 'flex', flexDirection: 'column', gap: 14, position: 'relative', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div ref={dashRef} style={{ flex: 1, minHeight: 0, padding: 16, paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 24px)', display: 'flex', flexDirection: 'column', gap: 14, position: 'relative', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {dashRefreshIndicator}
 
         {/* ── Hero Card ──────────────────────────────────────────────────────── */}
