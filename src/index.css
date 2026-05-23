@@ -70,10 +70,9 @@ body {
   flex-direction: column;
   position: relative;
   background: var(--bg);
-  /* Android 15+ enforces edge-to-edge — status bar is transparent and
-     the WebView starts from the very top. env(safe-area-inset-top) gives
-     the actual status bar height so content is pushed below it. */
-  padding-top: env(safe-area-inset-top, 0px);
+  /* Status bar is opaque and does NOT overlay the WebView.
+     setOverlaysWebView(false) + windowOptOutEdgeToEdge ensure the
+     WebView viewport starts BELOW the status bar on all Android versions. */
 }
 
 /* ── OFFLINE BANNER ── */

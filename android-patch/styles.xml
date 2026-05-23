@@ -2,15 +2,15 @@
 <resources>
 
     <!-- Base application theme — opaque system bars, no edge-to-edge.
-         The system automatically reserves status-bar and nav-bar space,
-         so the WebView viewport starts BELOW the status bar.
-         This means `position:sticky; top:0` headers work without any
-         env(safe-area-inset-top) tricks. -->
+         android:windowOptOutEdgeToEdge opts out of Android 15's forced
+         edge-to-edge so the WebView viewport starts BELOW the status bar
+         and ABOVE the gesture nav bar — no safe-area CSS tricks needed. -->
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.DarkActionBar">
         <item name="android:statusBarColor">#0f172a</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:navigationBarColor">#1e293b</item>
         <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowOptOutEdgeToEdge">true</item>
     </style>
 
     <!-- Capacitor WebView activity (no action bar) -->

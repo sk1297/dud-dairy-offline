@@ -13,9 +13,10 @@ async function start() {
     // small delay for the custom element to register
     await new Promise(r => setTimeout(r, 200))
 
-    // Match status bar to app dark background
+    // Status bar: opaque dark, does NOT overlay the WebView
     try {
       const { StatusBar, Style } = await import('@capacitor/status-bar')
+      await StatusBar.setOverlaysWebView({ overlay: false })
       await StatusBar.setStyle({ style: Style.Dark })
       await StatusBar.setBackgroundColor({ color: '#0f172a' })
     } catch (_) { /* ignore on older Android */ }
