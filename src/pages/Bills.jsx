@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Header from '../components/Header.jsx'
 import Modal from '../components/Modal.jsx'
@@ -32,10 +32,15 @@ export default function Bills() {
   const [customers, setCustomers] = useState([])
   const [payments, setPayments]   = useState([])
   const [outstanding, setOutstanding] = useState([])
-  const [loading, setLoading]     = useState(true)
+  const [loading, setLoading]       = useState(true)
+  const [loadingPay, setLoadingPay] = useState(false)
+  const [loadingOut, setLoadingOut] = useState(false)
   const { month, year }           = getMonthYear()
   const [selMonth, setSelMonth]   = useState(month)
   const [selYear,  setSelYear]    = useState(year)
+
+  // Track which tabs have been loaded (cache key for bills is month-year)
+  const loadedRef = useRef({ billsKey: null, payments: false, outstanding: false })
 
   // Payment modal
   const [payModal,  setPayModal]  = useState(false)
@@ -78,25 +83,75 @@ export default function Bills() {
 
   const [dairyName, setDairyName] = useState('')
 
-  const load = useCallback(async () => {
+  // Load bills for selected month + customers (needed by all tabs for names/modal)
+  const loadBills = useCallback(async (m, y) => {
+    const key = `${m}-${y}`
     setLoading(true)
     try {
-      const [b, c, p, o, setting] = await Promise.all([
-        getBills(), getCustomers(), getPayments(), getOutstanding(),
-        import('../db/database.js').then(m => m.default.first("SELECT value FROM settings WHERE key='dairy_name' LIMIT 1")),
+      const [b, c, setting] = await Promise.all([
+        getBills(m, y),
+        getCustomers(),
+        import('../db/database.js').then(mod => mod.default.first("SELECT value FROM settings WHERE key='dairy_name' LIMIT 1")),
       ])
-      setBills(b); setCustomers(c); setPayments(p); setOutstanding(o)
+      setBills(b); setCustomers(c)
       if (setting?.value) setDairyName(setting.value)
+      loadedRef.current.billsKey = key
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  // Load payments (lazy — only when tab 1 opened or pull-to-refresh)
+  const loadPayments = useCallback(async () => {
+    setLoadingPay(true)
+    try {
+      const p = await getPayments()
+      setPayments(p)
+      loadedRef.current.payments = true
+    } finally {
+      setLoadingPay(false)
+    }
+  }, [])
+
+  // Load outstanding (lazy — only when tab 2 opened or pull-to-refresh)
+  const loadOutstanding = useCallback(async () => {
+    setLoadingOut(true)
+    try {
+      const o = await getOutstanding()
+      setOutstanding(o)
+      loadedRef.current.outstanding = true
+    } finally {
+      setLoadingOut(false)
+    }
+  }, [])
+
+  // Master refresh — reload everything currently visible
+  const load = useCallback(async () => {
+    const key = `${selMonth}-${selYear}`
+    loadedRef.current = { billsKey: null, payments: false, outstanding: false }
+    await loadBills(selMonth, selYear)
+    if (tab === 1) await loadPayments()
+    if (tab === 2) await loadOutstanding()
+  }, [selMonth, selYear, tab, loadBills, loadPayments, loadOutstanding])
+
+  // On mount: load bills tab first
+  useEffect(() => { loadBills(selMonth, selYear) }, [])   // eslint-disable-line
+
+  // When month/year changes: reload bills
+  useEffect(() => {
+    loadBills(selMonth, selYear)
+  }, [selMonth, selYear])   // eslint-disable-line
+
+  // When tab changes: lazy-load that tab's data
+  useEffect(() => {
+    if (tab === 1 && !loadedRef.current.payments)   loadPayments()
+    if (tab === 2 && !loadedRef.current.outstanding) loadOutstanding()
+  }, [tab])   // eslint-disable-line
 
   const { containerRef: billsListRef, indicator: billsRefreshIndicator } = usePullToRefresh(load)
 
-  const monthBills = bills.filter(b => b.month === selMonth && b.year === selYear)
+  // bills are already filtered by selMonth/selYear from DB query
+  const monthBills = bills
 
   const handleGenerate = async () => {
     setGenning(true)
@@ -517,8 +572,10 @@ export default function Bills() {
       {tab===1 && (
         <div style={{ flex:1, padding:'14px 16px 16px', display:'flex', flexDirection:'column', gap:10 }}>
 
+          {loadingPay && <div className="loading"><span className="spinner" /> पैसे लोड...</div>}
+
           {/* Summary + Add button */}
-          {(() => {
+          {!loadingPay && (() => {
             const total = payments.reduce((s,p)=>s+(p.amount||0),0)
             const byMode = payments.reduce((acc,p) => { acc[p.mode] = (acc[p.mode]||0) + p.amount; return acc }, {})
             return (
@@ -548,7 +605,7 @@ export default function Bills() {
           })()}
 
           {/* Filter row */}
-          {payments.length > 0 && (
+          {!loadingPay && payments.length > 0 && (
             <div style={{ display:'flex', gap:8 }}>
               <BottomPicker
                 className="form-input"
@@ -575,7 +632,7 @@ export default function Bills() {
             </div>
           )}
 
-          {filteredPayments.length === 0 ? (
+          {!loadingPay && filteredPayments.length === 0 ? (
             <div className="empty">
               <div className="empty-icon">💰</div>
               <div className="empty-title">{payments.length===0 ? 'पैसे जमा नाही' : 'कोणतीही नोंद सापडली नाही'}</div>
@@ -641,8 +698,10 @@ export default function Bills() {
       {tab===2 && (
         <div style={{ flex:1, padding:'14px 16px 16px', display:'flex', flexDirection:'column', gap:10 }}>
 
+          {loadingOut && <div className="loading"><span className="spinner" /> थकबाकी लोड...</div>}
+
           {/* Hero total */}
-          {outstanding.length > 0 && (() => {
+          {!loadingOut && outstanding.length > 0 && (() => {
             const totalDue    = outstanding.reduce((s,c)=>s+(c.outstanding||0),0)
             const totalBilled = outstanding.reduce((s,c)=>s+(c.totalBilled||0),0)
             const totalPaid   = outstanding.reduce((s,c)=>s+(c.totalPaid||0),0)
@@ -674,13 +733,13 @@ export default function Bills() {
             )
           })()}
 
-          {outstanding.length === 0 ? (
+          {!loadingOut && outstanding.length === 0 ? (
             <div className="empty">
               <div className="empty-icon">✅</div>
               <div className="empty-title">कोणाची थकबाकी नाही!</div>
               <div className="empty-desc">सर्व पैसे जमा झाले आहेत</div>
             </div>
-          ) : outstanding.map((c,i) => {
+          ) : !loadingOut && outstanding.map((c,i) => {
             const paidPct = c.totalBilled > 0 ? Math.min(100, Math.round((c.totalPaid/c.totalBilled)*100)) : 0
             // Urgency color based on outstanding amount
             const urgencyColor = c.outstanding > 5000 ? 'var(--red)' : c.outstanding > 2000 ? 'var(--yellow)' : 'var(--text2)'

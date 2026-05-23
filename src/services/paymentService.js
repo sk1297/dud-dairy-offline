@@ -34,16 +34,26 @@ export async function getTodayPayments() {
 }
 
 export async function getOutstanding() {
-  const customers = await db.query("SELECT * FROM customers WHERE status = 'active'")
-  const bills     = await db.query('SELECT * FROM monthly_bills')
-  const payments  = await db.query('SELECT * FROM payments')
-
-  return customers.map(c => {
-    const custBills    = bills.filter(b => b.customer_id === c.id)
-    const custPayments = payments.filter(p => p.customer_id === c.id)
-    const totalBilled  = custBills.reduce((s, b) => s + (b.total_amount || 0), 0)
-    const totalPaid    = custPayments.reduce((s, p) => s + (p.amount || 0), 0)
-    const outstanding  = totalBilled - totalPaid
-    return { ...c, outstanding, totalBilled, totalPaid }
-  }).filter(c => c.outstanding > 0).sort((a, b) => b.outstanding - a.outstanding)
+  // Single SQL query — no full table loads into JS
+  return db.query(`
+    SELECT
+      c.id, c.name, c.mobile, c.area_id, c.status,
+      COALESCE(b.totalBilled, 0) AS totalBilled,
+      COALESCE(p.totalPaid,   0) AS totalPaid,
+      (COALESCE(b.totalBilled, 0) - COALESCE(p.totalPaid, 0)) AS outstanding
+    FROM customers c
+    LEFT JOIN (
+      SELECT customer_id, SUM(total_amount) AS totalBilled
+      FROM monthly_bills
+      GROUP BY customer_id
+    ) b ON b.customer_id = c.id
+    LEFT JOIN (
+      SELECT customer_id, SUM(amount) AS totalPaid
+      FROM payments
+      GROUP BY customer_id
+    ) p ON p.customer_id = c.id
+    WHERE c.status = 'active'
+      AND (COALESCE(b.totalBilled, 0) - COALESCE(p.totalPaid, 0)) > 0
+    ORDER BY outstanding DESC
+  `)
 }

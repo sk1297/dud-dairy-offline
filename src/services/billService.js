@@ -1,7 +1,9 @@
 import db from '../db/database.js'
 import { getDeliveriesForCustomerMonth } from './deliveryService.js'
 
-export const getBills         = ()    => db.query('SELECT * FROM monthly_bills ORDER BY year DESC, month DESC')
+export const getBills         = (month, year) => month && year
+  ? db.query('SELECT * FROM monthly_bills WHERE month = ? AND year = ? ORDER BY customer_id', [month, year])
+  : db.query('SELECT * FROM monthly_bills ORDER BY year DESC, month DESC')
 export const getBillById      = (id)  => db.first('SELECT * FROM monthly_bills WHERE id = ? LIMIT 1', [id])
 export const getBillItems     = (id)  => db.query('SELECT * FROM bill_items WHERE bill_id = ?', [id])
 export const getCustomerBills = (cid) => db.query('SELECT * FROM monthly_bills WHERE customer_id = ? ORDER BY year DESC, month DESC', [cid])
