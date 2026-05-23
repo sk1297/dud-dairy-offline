@@ -643,7 +643,7 @@ export default function Delivery() {
   }).length
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 60px)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 100px)' }}>
 
       <Header
         title="डिलिव्हरी"
@@ -822,7 +822,7 @@ export default function Delivery() {
       {/* Undo bar — shown for 12s after mark-all */}
       {undoBar && (
         <div style={{
-          position: 'fixed', bottom: `calc(var(--nav-h) + 64px)`, left: '50%', transform: 'translateX(-50%)',
+          position: 'fixed', bottom: `calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 64px)`, left: '50%', transform: 'translateX(-50%)',
           width: 'calc(100% - 32px)', maxWidth: 398,
           background: '#1e293b', border: '1.5px solid rgba(16,185,129,0.4)',
           borderRadius: 14, padding: '12px 16px',
@@ -841,7 +841,7 @@ export default function Delivery() {
 
       {/* Summary Footer */}
       <div style={{
-        position: 'fixed', bottom: 'var(--nav-h)', left: '50%', transform: 'translateX(-50%)',
+        position: 'fixed', bottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px))', left: '50%', transform: 'translateX(-50%)',
         width: '100%', maxWidth: 430,
         background: 'var(--surface)', borderTop: '1px solid var(--border)',
         padding: '10px 24px', display: 'flex', gap: 20, justifyContent: 'center', zIndex: 30,

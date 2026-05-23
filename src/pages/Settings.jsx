@@ -210,7 +210,7 @@ export default function Settings() {
             </div>
 
             {/* ── Save button — sticky at bottom ── */}
-            <div style={{ position: 'sticky', bottom: 'var(--nav-h)', zIndex: 20, background: 'var(--bg)', paddingBottom: 8, paddingTop: 4 }}>
+            <div style={{ position: 'sticky', bottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px))', zIndex: 20, background: 'var(--bg)', paddingBottom: 8, paddingTop: 4 }}>
               <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleSaveProfile} disabled={saving}>
                 {saving ? <span className="spinner" /> : (
                   <>

@@ -1,28 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- Base application theme -->
+    <!-- Base application theme — opaque system bars, no edge-to-edge.
+         The system automatically reserves status-bar and nav-bar space,
+         so the WebView viewport starts BELOW the status bar.
+         This means `position:sticky; top:0` headers work without any
+         env(safe-area-inset-top) tricks. -->
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.DarkActionBar">
-        <!-- Transparent system bars — CSS/JS controls the colours via StatusBar plugin -->
-        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">#0f172a</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">#1e293b</item>
         <item name="android:windowLightNavigationBar">false</item>
-        <!-- Draw behind system bars (required for edge-to-edge layout) -->
-        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
-        <!-- Do NOT fit system windows — lets CSS handle safe-area insets -->
-        <item name="android:fitsSystemWindows">false</item>
     </style>
 
     <!-- Capacitor WebView activity (no action bar) -->
     <style name="AppTheme.NoActionBar" parent="AppTheme">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
+        <item name="android:background">@null</item>
     </style>
 
     <!-- Launch / splash screen theme.
          Background = dark app colour so there is NO white flash before the
-         WebView loads. Status/nav bar colours locked to dark theme. -->
+         WebView loads. -->
     <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
         <item name="android:background">@color/splash_background</item>
         <item name="android:statusBarColor">@color/splash_background</item>

@@ -271,15 +271,13 @@ export default function Dashboard() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', background: 'var(--bg)' }}>
 
-      {/* ── Header — same safe-area pattern as .header CSS class ── */}
+      {/* ── Header ── */}
       <div style={{
         position: 'sticky',
-        top: 'env(safe-area-inset-top, 0px)',
+        top: 0,
         zIndex: 40,
         background: 'var(--surface)', borderBottom: '1px solid var(--border)',
         padding: '0 16px',
-        paddingTop: 'calc(env(safe-area-inset-top, 0px))',
-        marginTop: 'calc(-1 * env(safe-area-inset-top, 0px))',
         minHeight: 56,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
       }}>

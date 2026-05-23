@@ -224,7 +224,7 @@ export default function Bills() {
       />
 
       {/* Sticky tab bar */}
-      <div style={{ position:'sticky', top:'calc(52px + env(safe-area-inset-top, 0px))', zIndex:10, background:'var(--bg)', padding:'10px 16px 0', borderBottom:'1px solid var(--border)' }}>
+      <div style={{ position:'sticky', top:'52px', zIndex:10, background:'var(--bg)', padding:'10px 16px 0', borderBottom:'1px solid var(--border)' }}>
         <div className="tabs">
           {TABS.map((t,i) => (
             <button key={i} className={`tab${tab===i?' active':''}`} onClick={()=>setTab(i)}>{t}</button>
