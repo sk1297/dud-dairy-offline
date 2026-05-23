@@ -154,7 +154,7 @@ export default function Backup() {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 24px)' }}>
+    <div className="page-root">
       <Header title="बॅकअप व एक्सपोर्ट" icon="💾" subtitle="डेटा सुरक्षित ठेवा" />
 
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>

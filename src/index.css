@@ -135,12 +135,23 @@ body {
   margin-right: 4px;
 }
 
+/* ── PAGE ROOT ──
+   Universal outer wrapper for every page. One class, applies everywhere.
+   padding-bottom clears the fixed bottom nav + gesture bar on all devices. */
+.page-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--bg);
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 36px) + 24px);
+}
+
 /* ── PAGE ── */
 .page {
   flex: 1;
   overflow-y: auto;
-  -webkit-overflow-scrolling: touch; /* smooth momentum scroll in WebView */
-  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 24px);
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 36px) + 24px);
 }
 
 /* ── BOTTOM NAV ── */
@@ -152,8 +163,8 @@ body {
   width: 100%;
   max-width: 430px;
   /* grow to cover device gesture/button bar */
-  height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom, 36px));
+  padding-bottom: env(safe-area-inset-bottom, 36px);
   background: var(--surface);
   border-top: 1px solid var(--border);
   display: flex;
