@@ -305,47 +305,80 @@ function buildBillHTML({ customer, bill, items, dairyName, area }) {
 </html>`
 }
 
+// ── Crop a canvas to a vertical slice (for multi-page PDF) ───────────────────
+function cropCanvas(srcCanvas, yStart, sliceHeight) {
+  const c   = document.createElement('canvas')
+  c.width   = srcCanvas.width
+  c.height  = Math.min(sliceHeight, srcCanvas.height - yStart)
+  const ctx = c.getContext('2d')
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, c.width, c.height)
+  ctx.drawImage(srcCanvas, 0, yStart, c.width, c.height, 0, 0, c.width, c.height)
+  return c
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 export async function shareBillAsPDF({ customer, bill, items, dairyName, area }) {
-  // 1. Create a hidden off-screen container
+  // 1. Create an off-screen container that does NOT affect app layout.
+  //    Use position:absolute outside the visible scroll area + overflow:hidden
+  //    on a wrapper so nothing shifts on screen.
+  const wrapper = document.createElement('div')
+  wrapper.style.cssText = [
+    'position:absolute',
+    'top:0',
+    'left:0',
+    'width:0',
+    'height:0',
+    'overflow:hidden',
+    'pointer-events:none',
+    'z-index:-9999',
+  ].join(';')
+
   const container = document.createElement('div')
-  container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;z-index:-1;background:#fff;'
+  container.style.cssText = 'width:794px;background:#fff;'
   container.innerHTML = buildBillHTML({ customer, bill, items, dairyName, area })
-  document.body.appendChild(container)
+
+  wrapper.appendChild(container)
+  document.body.appendChild(wrapper)
 
   try {
-    // 2. Wait one frame for fonts/layout to settle
-    await new Promise(r => setTimeout(r, 150))
+    // 2. Wait for fonts + layout to fully render
+    await new Promise(r => setTimeout(r, 200))
 
-    // 3. Screenshot with html2canvas
+    // 3. Screenshot full bill with html2canvas at 2× scale
     const canvas = await html2canvas(container, {
-      scale:           2,          // 2× for crisp text on retina/high-DPI
+      scale:           2,
       useCORS:         true,
       backgroundColor: '#ffffff',
       logging:         false,
+      // Explicitly set dimensions so html2canvas doesn't measure wrongly
+      width:           794,
+      height:          container.scrollHeight,
+      windowWidth:     794,
     })
 
-    // 4. Convert canvas to JPEG (smaller than PNG)
-    const imgData = canvas.toDataURL('image/jpeg', 0.92)
+    // 4. Build A4 PDF — crop canvas per page so content is never lost
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+    const pgW = pdf.internal.pageSize.getWidth()   // 210 mm
+    const pgH = pdf.internal.pageSize.getHeight()  // 297 mm
 
-    // 5. Create A4 PDF and fit the image to page width
-    const pdf    = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
-    const pgW    = pdf.internal.pageSize.getWidth()   // 210mm
-    const pgH    = pdf.internal.pageSize.getHeight()  // 297mm
-    const imgW   = pgW
-    const imgH   = (canvas.height / canvas.width) * pgW
+    // How many canvas pixels equal one PDF page height?
+    const scale       = canvas.width / pgW          // px per mm
+    const pageHeightPx = Math.floor(pgH * scale)    // canvas pixels per page
+    const totalPages  = Math.ceil(canvas.height / pageHeightPx)
 
-    // If bill is taller than one page, add extra pages
-    let yOffset = 0
-    let remaining = imgH
-    while (remaining > 0) {
-      if (yOffset > 0) pdf.addPage()
-      pdf.addImage(imgData, 'JPEG', 0, -yOffset, imgW, imgH)
-      yOffset   += pgH
-      remaining -= pgH
+    for (let page = 0; page < totalPages; page++) {
+      if (page > 0) pdf.addPage()
+
+      // Crop exactly one page's worth of pixels
+      const slice    = cropCanvas(canvas, page * pageHeightPx, pageHeightPx)
+      const sliceH   = (slice.height / scale)       // mm height of this slice
+      const imgData  = slice.toDataURL('image/jpeg', 0.92)
+
+      pdf.addImage(imgData, 'JPEG', 0, 0, pgW, sliceH)
     }
 
-    // 6. Share or download
+    // 5. Share or download
     const filename = `bill-${customer.name.replace(/\s+/g, '-')}-${bill.month}-${bill.year}.pdf`
 
     if (Capacitor.getPlatform() !== 'web') {
@@ -366,7 +399,7 @@ export async function shareBillAsPDF({ customer, bill, items, dairyName, area })
       pdf.save(filename)
     }
   } finally {
-    // Always clean up the off-screen element
-    document.body.removeChild(container)
+    // Always remove wrapper — keeps DOM clean
+    document.body.removeChild(wrapper)
   }
 }
