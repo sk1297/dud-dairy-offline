@@ -13,10 +13,10 @@ export async function getCustomerById(id) {
 }
 
 export async function addCustomer(data) {
-  const { name, mobile, area_id, address, product_id, rate, morning_qty, evening_qty, status = 'active', notes = '' } = data
+  const { name, mobile, area_id, address, product_id, rate, morning_qty, evening_qty, status = 'active', start_date = '' } = data
   return db.insert(
-    'INSERT INTO customers (name, mobile, area_id, address, product_id, rate, morning_qty, evening_qty, status, notes) VALUES (?,?,?,?,?,?,?,?,?,?)',
-    [name, mobile || '', area_id || null, address || '', product_id, rate || 0, morning_qty || 0, evening_qty || 0, status, notes]
+    'INSERT INTO customers (name, mobile, area_id, address, product_id, rate, morning_qty, evening_qty, status, start_date) VALUES (?,?,?,?,?,?,?,?,?,?)',
+    [name, mobile || '', area_id || null, address || '', product_id, rate || 0, morning_qty || 0, evening_qty || 0, status, start_date]
   )
 }
 
