@@ -109,12 +109,12 @@ async function loadTodayData() {
 
     // product-wise delivered qty today
     db.query(`
-      SELECT p.name, p.unit, p.type,
+      SELECT COALESCE(p.name,'दूध') as name, COALESCE(p.unit,'L') as unit, COALESCE(p.type,'milk') as type,
              SUM(d.qty) as qty
       FROM deliveries d
-      JOIN products p ON p.id = d.product_id
+      LEFT JOIN products p ON p.id = d.product_id
       WHERE d.date = ? AND d.status IN ('delivered','partial')
-      GROUP BY p.id
+      GROUP BY d.product_id
     `, [today]),
 
     // pending customer names
@@ -144,7 +144,7 @@ async function loadTodayData() {
     totalLiters:  (morning.delivered_qty || 0) + (evening.delivered_qty || 0),
     servedCusts:  servedRow[0]?.cnt || 0,
     totalActive:  totalActive[0]?.cnt || 0,
-    todayCollect: totalCollect[0]?.total || 0,
+    todayCollect: todayCollect[0]?.total || 0,
     todayByProd:  productStats,
     pendingCusts: pendingCusts.map(r => r.name),
   }
