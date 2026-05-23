@@ -10,20 +10,33 @@ const IS_NATIVE = Capacitor.getPlatform() !== 'web'
 const LAST_BACKUP_KEY = 'dud_last_backup'
 const BATCH_SIZE = 500   // rows per INSERT statement
 
+// ── Get actual columns that exist in a table ────────────────────────────────
+async function getTableColumns(table) {
+  const rows = await db.query(`PRAGMA table_info(${table})`)
+  return rows.map(r => r.name)
+}
+
 // ── Batch restore a single table inside an open transaction ─────────────────
-// Builds multi-row INSERT OR REPLACE statements in chunks of BATCH_SIZE.
-// onProgress(done, total) is called after each batch.
+// Fetches real table columns first, then ignores any extra fields in the JSON
+// that don't exist in the current schema (prevents "no column named X" errors).
 async function batchRestoreTable(table, rows, onProgress) {
   if (!rows?.length) { onProgress(0, 0); return }
+
+  // Only use columns that actually exist in the DB table
+  const tableCols   = await getTableColumns(table)
+  const backupCols  = Object.keys(rows[0])
+  const cols        = backupCols.filter(c => tableCols.includes(c))
+
+  if (cols.length === 0) throw new Error(`${table}: कोणतेही जुळणारे स्तंभ नाहीत`)
+
   const total = rows.length
   let done = 0
 
   for (let i = 0; i < total; i += BATCH_SIZE) {
-    const chunk = rows.slice(i, i + BATCH_SIZE)
-    const cols  = Object.keys(chunk[0])
+    const chunk          = rows.slice(i, i + BATCH_SIZE)
     const placeholderRow = `(${cols.map(() => '?').join(',')})`
-    const sql   = `INSERT OR REPLACE INTO ${table} (${cols.join(',')}) VALUES ${chunk.map(() => placeholderRow).join(',')}`
-    const vals  = chunk.flatMap(row => cols.map(c => row[c]))
+    const sql            = `INSERT OR REPLACE INTO ${table} (${cols.join(',')}) VALUES ${chunk.map(() => placeholderRow).join(',')}`
+    const vals           = chunk.flatMap(row => cols.map(c => row[c]))
     await db.run(sql, vals)
     done += chunk.length
     onProgress(done, total)
