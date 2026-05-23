@@ -1,33 +1,48 @@
 import React, { useRef, useEffect } from 'react'
 
 /**
- * IME-safe text input — fixes Marathi / Devanagari keyboard input on Android.
+ * Marathi / Devanagari-safe text input for Capacitor Android.
  *
- * WHY THIS EXISTS:
- * Android WebView (Capacitor) does NOT reliably fire compositionstart /
- * compositionend events for Gboard / Devanagari IME. The old composition-
- * event approach breaks — the keyboard commits a character, React re-renders
- * with the old value, and the typed Marathi character disappears.
+ * WHY TWO BUGS EXISTED BEFORE:
  *
- * FIX:
- * - Use an uncontrolled input (defaultValue, not value) so React never
- *   overwrites the DOM during active typing.
- * - Listen to the native `onInput` event and check `e.nativeEvent.isComposing`
- *   which works at the browser engine level even when composition events
- *   don't fire (Android WebView behaviour).
- * - Sync external value → DOM only when the input is NOT focused
- *   (e.g. form reset, programmatic clear).
- * - Always sync on blur so the parent state is fully up to date.
+ * Bug 1 — captureInput:true in capacitor.config.json
+ *   That setting intercepts keyboard events for hardware keyboards.
+ *   For Gboard's Devanagari soft-keyboard it blocks the IME channel
+ *   so characters never reach the WebView at all. Fixed in config.
+ *
+ * Bug 2 — blocking onChange when isComposing === true
+ *   Gboard Marathi holds isComposing=true for the entire word-suggestion
+ *   session. The old guard `if (!isComposing) onChange()` meant onChange
+ *   was never called while typing — search didn't filter, forms only saved
+ *   stale values until the user tapped away.
+ *
+ * THIS COMPONENT'S STRATEGY:
+ *   - Use `defaultValue` (uncontrolled) so React NEVER overwrites the DOM
+ *     value after the initial render. This is the only thing that truly
+ *     prevents the "character appears then vanishes" bug.
+ *   - Pass `onChange` straight through — fires on every keystroke, keeps
+ *     parent state in sync in real time (search filtering works).
+ *   - `useEffect` syncs external value → DOM **only when not focused**
+ *     (handles programmatic reset / form-clear from the parent).
+ *   - `onBlur` fires onChange once more to guarantee the final committed
+ *     value reaches the parent even if a keyboard committed silently.
  */
-export default function TextInput({ value, onChange, className = 'form-input', ...props }) {
+export default function TextInput({
+  value,
+  onChange,
+  className = 'form-input',
+  onFocus: onFocusProp,
+  onBlur:  onBlurProp,
+  ...props
+}) {
   const inputRef  = useRef(null)
   const isFocused = useRef(false)
 
-  // Sync external value changes into the DOM — only when not focused
+  // Sync only when the parent changes the value from outside
+  // (e.g. form reset, clear button) — never overwrite while the user is typing
   useEffect(() => {
     const el = inputRef.current
-    if (!el || isFocused.current) return
-    if (el.value !== (value ?? '')) {
+    if (el && !isFocused.current && el.value !== (value ?? '')) {
       el.value = value ?? ''
     }
   }, [value])
@@ -36,19 +51,16 @@ export default function TextInput({ value, onChange, className = 'form-input', .
     <input
       ref={inputRef}
       className={className}
-      defaultValue={value}
-      onFocus={() => { isFocused.current = true }}
+      defaultValue={value ?? ''}
+      onChange={onChange}
+      onFocus={e => {
+        isFocused.current = true
+        onFocusProp?.(e)
+      }}
       onBlur={e => {
         isFocused.current = false
-        // Always fire onChange on blur so parent state is fully in sync
-        onChange?.(e)
-      }}
-      onInput={e => {
-        // isComposing works in Android WebView even when compositionstart /
-        // compositionend events do not fire reliably for Devanagari IME
-        if (!e.nativeEvent.isComposing) {
-          onChange?.(e)
-        }
+        onChange?.(e)     // guarantee final committed value reaches parent
+        onBlurProp?.(e)
       }}
       {...props}
     />

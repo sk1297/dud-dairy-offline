@@ -5,7 +5,7 @@
   "bundledWebRuntime": false,
   "android": {
     "allowMixedContent": true,
-    "captureInput": true,
+    "captureInput": false,
     "webContentsDebuggingEnabled": false,
     "backgroundColor": "#0f172a",
     "loggingBehavior": "none",
