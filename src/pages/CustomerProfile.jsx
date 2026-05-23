@@ -594,7 +594,7 @@ export default function CustomerProfile() {
       </div>
 
       {/* ── Tabs ── sticky */}
-      <div style={{ position: 'sticky', top: '52px', zIndex: 10, background: 'var(--bg)', padding: '10px 16px 0', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg)', padding: '10px 16px 0', borderBottom: '1px solid var(--border)' }}>
         <div className="tabs">
           {['बिले', 'डिलिव्हरी', 'पैसे'].map((t, i) => (
             <button key={i} className={`tab${tab === i ? ' active' : ''}`} onClick={() => setTab(i)}>{t}</button>
@@ -606,213 +606,171 @@ export default function CustomerProfile() {
 
         {/* ── Bills Tab ── */}
         {tab === 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {bills.length === 0 ? (
-              <div className="empty">
-                <div className="empty-icon">📋</div>
-                <div className="empty-title">बिल नाही</div>
-                <div className="empty-desc">वर "बिल बनवा" बटण दाबा</div>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    {bills.length === 0 ? (
+      <div className="empty">
+        <div className="empty-icon">📋</div>
+        <div className="empty-title">बिल नाही</div>
+        <div className="empty-desc">वर "बिल बनवा" बटण दाबा</div>
+      </div>
+    ) : bills.map(bill => {
+      const isExpanded = expandedBill?.id === bill.id
+      const items = billItemsMap[bill.id] || []
+      const monthLabel = `${MONTH_NAMES_MR[bill.month - 1]} ${bill.year}`
+
+      return (
+        <div key={bill.id} style={{ background: 'var(--surface)', border: `1.5px solid ${isExpanded ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 16, overflow: 'hidden', transition: 'border-color 0.2s' }}>
+
+          {/* ── Collapsed header ── */}
+          <div style={{ padding: '14px 14px 12px', cursor: 'pointer' }} onClick={() => toggleBill(bill)}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(16,185,129,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>📋</div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{monthLabel}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>{bill.is_locked ? '🔒 लॉक' : '📝 मसुदा'}</div>
+                </div>
               </div>
-            ) : bills.map(bill => {
-              const isExpanded = expandedBill?.id === bill.id
-              const items = billItemsMap[bill.id] || []
-              const monthLabel = `${MONTH_NAMES_MR[bill.month - 1]} ${bill.year}`
-
-              return (
-                <div key={bill.id} style={{ background: 'var(--surface)', border: `1px solid ${isExpanded ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 14, overflow: 'hidden', transition: 'border-color 0.2s' }}>
-                  {/* Bill header row — clean 2-line collapsed */}
-                  <div style={{ padding: '12px 14px', cursor: 'pointer' }} onClick={() => toggleBill(bill)}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{monthLabel}</div>
-                        <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 3 }}>
-                          {formatCurrency(bill.total_amount)} बिल
-                          <span style={{ margin: '0 5px', color: 'var(--border)' }}>•</span>
-                          <span style={{ color: 'var(--green)' }}>{formatCurrency(bill.payments_made)} जमा</span>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                        <span className={`badge ${bill.is_locked ? 'badge-green' : 'badge-yellow'}`}>
-                          {bill.is_locked ? '🔒 लॉक' : 'मसुदा'}
-                        </span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 13, fontWeight: 800, color: bill.amount_due > 0 ? 'var(--red)' : 'var(--green)' }}>
-                            बाकी {formatCurrency(bill.amount_due)}
-                          </span>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ color: 'var(--text2)', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9"/></svg>
-                        </div>
-                      </div>
-                    </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: bill.amount_due > 0 ? 'var(--red)' : 'var(--green)' }}>
+                    {bill.amount_due > 0 ? `बाकी ${formatCurrency(bill.amount_due)}` : '✓ चुकते'}
                   </div>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ color: 'var(--text2)', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }}><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+            </div>
+            {/* 3-col mini summary */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', background: 'var(--surface2)', borderRadius: 10, overflow: 'hidden' }}>
+              {[
+                { label: 'बिल', value: formatCurrency(bill.total_amount), color: 'var(--text)' },
+                { label: 'जमा', value: formatCurrency(bill.payments_made), color: 'var(--green)' },
+                { label: 'बाकी', value: formatCurrency(bill.amount_due), color: bill.amount_due > 0 ? 'var(--red)' : 'var(--green)' },
+              ].map((s, i) => (
+                <div key={i} style={{ padding: '8px 6px', textAlign: 'center', borderRight: i < 2 ? '1px solid var(--border)' : 'none' }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: s.color }}>{s.value}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
 
-                  {/* Expanded detail */}
-                  {isExpanded && (
-                    <div style={{ borderTop: '1px solid var(--border)' }}>
-                      {/* ── Share & Actions panel ── */}
-                      <div style={{ borderBottom: '1px solid var(--border)' }}>
+          {/* ── Expanded detail ── */}
+          {isExpanded && (
+            <div style={{ borderTop: '1px solid var(--border)' }}>
 
-                        {/* Share section label */}
-                        <div style={{ padding: '8px 14px 6px', background: 'rgba(0,0,0,0.1)' }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                            📤 बिल पाठवा / प्रिंट करा
-                          </span>
-                        </div>
-
-                        {/* Share buttons row */}
-                        <div style={{ display: 'grid', gridTemplateColumns: customer.mobile ? '1fr 1fr 1fr' : '1fr 1fr', gap: 0 }}>
-
-                          {/* WhatsApp — only if mobile exists */}
-                          {customer.mobile && (
-                            <button
-                              style={{
-                                background: 'none', border: 'none', borderRight: '1px solid var(--border)',
-                                padding: '12px 8px', cursor: 'pointer',
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                              }}
-                              onClick={() => {
-                                const text = buildWhatsAppText({ customer, bill, items: billItemsMap[bill.id] || [], dairyName })
-                                const url  = `https://wa.me/91${customer.mobile}?text=${encodeURIComponent(text)}`
-                                window.open(url, '_blank')
-                              }}
-                            >
-                              <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(37,211,102,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
-                                💬
-                              </div>
-                              <span style={{ fontSize: 11, fontWeight: 700, color: '#25d366' }}>WhatsApp</span>
-                            </button>
-                          )}
-
-                          {/* Print / PDF */}
-                          <button
-                            style={{
-                              background: 'none', border: 'none', borderRight: '1px solid var(--border)',
-                              padding: '12px 8px', cursor: 'pointer',
-                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                            }}
-                            onClick={() => handlePrintBill(bill)}
-                          >
-                            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(16,185,129,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
-                              📄
-                            </div>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>बिल पाहा</span>
-                          </button>
-
-                          {/* Copy text */}
-                          <button
-                            style={{
-                              background: 'none', border: 'none',
-                              padding: '12px 8px', cursor: 'pointer',
-                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                            }}
-                            onClick={() => {
-                              const text = buildWhatsAppText({ customer, bill, items: billItemsMap[bill.id] || [], dairyName })
-                              copyToClipboard(text, show)
-                            }}
-                          >
-                            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
-                              📋
-                            </div>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#818cf8' }}>मजकूर कॉपी</span>
-                          </button>
-                        </div>
-
-                        {/* Lock + Delete row */}
-                        {!bill.is_locked && (
-                          <div style={{ display: 'flex', gap: 8, padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
-                            <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => handleLock(bill.id)}>
-                              🔒 लॉक करा
-                            </button>
-                            <button
-                              className="btn btn-ghost btn-sm"
-                              style={{ color: 'var(--red)', borderColor: 'rgba(239,68,68,0.3)', padding: '6px 14px', flexShrink: 0 }}
-                              onClick={() => setDeleteBillId(bill.id)}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
-                            </button>
-                          </div>
-                        )}
-                        {bill.is_locked && (
-                          <div style={{ display: 'flex', gap: 8, padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
-                            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--yellow)', fontSize: 12 }}
-                              onClick={e => { e.stopPropagation(); setUnlockBillId(bill.id) }}>
-                              🔓 अनलॉक
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Bill summary info */}
-                      <div style={{ padding: '10px 14px 4px' }}>
-                        {bill.prev_balance > 0 && (
-                          <div className="bill-info-row">
-                            <span className="bill-info-label">मागील बाकी</span>
-                            <span className="bill-info-value" style={{ color: 'var(--yellow)' }}>{formatCurrency(bill.prev_balance)}</span>
-                          </div>
-                        )}
-                        <div className="bill-info-row">
-                          <span className="bill-info-label">एकूण बिल</span>
-                          <span className="bill-info-value">{formatCurrency(bill.total_amount)}</span>
-                        </div>
-                        <div className="bill-info-row">
-                          <span className="bill-info-label">जमा पैसे</span>
-                          <span className="bill-info-value" style={{ color: 'var(--green)' }}>{formatCurrency(bill.payments_made)}</span>
-                        </div>
-                        <div className="bill-info-row" style={{ borderTop: '2px solid var(--border)', paddingTop: 8, marginTop: 4 }}>
-                          <span className="bill-info-label" style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>एकूण देणे</span>
-                          <span className="bill-info-value" style={{ fontSize: 16, color: bill.amount_due > 0 ? 'var(--red)' : 'var(--green)' }}>{formatCurrency(bill.amount_due)}</span>
-                        </div>
-                      </div>
-
-                      {/* Day-wise delivery items */}
-                      {items.length > 0 ? (
-                        <div style={{ padding: '4px 14px 14px' }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>
-                            दिवसवार तपशील ({items.length} नोंदी)
-                          </div>
-                          {/* Group by product */}
-                          {Object.entries(items.reduce((acc, item) => {
-                            const k = item.product_name || 'दूध'
-                            if (!acc[k]) acc[k] = []
-                            acc[k].push(item)
-                            return acc
-                          }, {})).map(([prodName, prodItems]) => (
-                            <div key={prodName} style={{ marginBottom: 10 }}>
-                              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', marginBottom: 4 }}>
-                                📦 {prodName}
-                                <span style={{ fontWeight: 500, color: 'var(--text2)', marginLeft: 8 }}>
-                                  {prodItems.reduce((s,i)=>s+i.qty,0).toFixed(1)}{prodItems[0]?.unit} = {formatCurrency(prodItems.reduce((s,i)=>s+i.amount,0))}
-                                </span>
-                              </div>
-                              {/* Table header */}
-                              <div style={{ display: 'grid', gridTemplateColumns: '90px 70px 1fr 60px 60px', gap: 4, marginBottom: 2 }}>
-                                {['तारीख','वेळ','दर','प्रमाण','रक्कम'].map(h => (
-                                  <div key={h} style={{ fontSize: 10, color: 'var(--text2)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{h}</div>
-                                ))}
-                              </div>
-                              {prodItems.sort((a, b) => a.date.localeCompare(b.date) || (a.session === 'morning' ? -1 : 1)).map((item, i) => (
-                                <div key={i} style={{ display: 'grid', gridTemplateColumns: '90px 70px 1fr 60px 60px', gap: 4, padding: '5px 8px', background: i % 2 === 0 ? 'var(--surface2)' : 'transparent', borderRadius: 6, marginBottom: 2, fontSize: 12 }}>
-                                  <span style={{ color: 'var(--text2)' }}>{item.date.slice(5)}</span>
-                                  <span style={{ color: 'var(--text2)' }}>{item.session === 'morning' ? '☀️ सकाळ' : '🌙 सं.'}</span>
-                                  <span style={{ color: 'var(--text2)' }}>₹{item.rate}</span>
-                                  <span style={{ color: 'var(--text)', fontWeight: 600 }}>{item.qty.toFixed(1)}{item.unit}</span>
-                                  <span style={{ color: 'var(--text)', fontWeight: 700, textAlign: 'right' }}>₹{item.amount.toFixed(0)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div style={{ padding: '10px 14px 14px', fontSize: 12, color: 'var(--text2)', textAlign: 'center' }}>
-                          बिल तपशील उपलब्ध नाही
-                        </div>
-                      )}
+              {/* Section A — Financial breakdown */}
+              <div style={{ padding: '12px 14px', background: 'rgba(0,0,0,0.12)' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>💰 आर्थिक तपशील</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 0, background: 'var(--surface)', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                  {bill.prev_balance > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: 13, color: 'var(--text2)' }}>⏪ मागील बाकी</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--yellow)' }}>{formatCurrency(bill.prev_balance)}</span>
                     </div>
                   )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text2)' }}>🥛 दुधाचे बिल</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{formatCurrency(bill.total_amount)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text2)' }}>✅ जमा पैसे</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)' }}>− {formatCurrency(bill.payments_made)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: bill.amount_due > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)' }}>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>एकूण देणे</span>
+                    <span style={{ fontSize: 16, fontWeight: 900, color: bill.amount_due > 0 ? 'var(--red)' : 'var(--green)' }}>{formatCurrency(bill.amount_due)}</span>
+                  </div>
                 </div>
-              )
-            })}
-          </div>
-        )}
+              </div>
+
+              {/* Section B — Day-wise delivery table */}
+              {items.length > 0 && (
+                <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>📦 दिवसवार तपशील ({items.length} नोंदी)</div>
+                  {Object.entries(items.reduce((acc, item) => {
+                    const k = item.product_name || 'दूध'
+                    if (!acc[k]) acc[k] = []
+                    acc[k].push(item)
+                    return acc
+                  }, {})).map(([prodName, prodItems]) => (
+                    <div key={prodName} style={{ marginBottom: 12 }}>
+                      {/* Product name + totals */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, padding: '6px 10px', background: 'rgba(16,185,129,0.08)', borderRadius: 8, border: '1px solid rgba(16,185,129,0.15)' }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>📦 {prodName}</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>
+                          {prodItems.reduce((s,i)=>s+i.qty,0).toFixed(1)}{prodItems[0]?.unit} = {formatCurrency(prodItems.reduce((s,i)=>s+i.amount,0))}
+                        </span>
+                      </div>
+                      {/* Table header */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '72px 60px 50px 54px 56px', gap: 4, padding: '0 4px 4px', borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
+                        {['तारीख','वेळ','दर','प्रमाण','रक्कम'].map(h => (
+                          <div key={h} style={{ fontSize: 10, color: 'var(--text2)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{h}</div>
+                        ))}
+                      </div>
+                      {/* Rows */}
+                      {prodItems.sort((a, b) => a.date.localeCompare(b.date) || (a.session === 'morning' ? -1 : 1)).map((item, i) => (
+                        <div key={i} style={{ display: 'grid', gridTemplateColumns: '72px 60px 50px 54px 56px', gap: 4, padding: '5px 4px', background: i % 2 === 0 ? 'var(--surface2)' : 'transparent', borderRadius: 6, marginBottom: 2, fontSize: 12 }}>
+                          <span style={{ color: 'var(--text2)' }}>{item.date.slice(5).replace('-', '/')}</span>
+                          <span style={{ color: 'var(--text2)' }}>{item.session === 'morning' ? '☀️' : '🌙'}</span>
+                          <span style={{ color: 'var(--text2)' }}>₹{item.rate}</span>
+                          <span style={{ color: 'var(--text)', fontWeight: 600 }}>{item.qty.toFixed(1)}{item.unit}</span>
+                          <span style={{ color: 'var(--text)', fontWeight: 700, textAlign: 'right' }}>₹{item.amount.toFixed(0)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {items.length === 0 && (
+                <div style={{ padding: '12px 14px', fontSize: 12, color: 'var(--text2)', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
+                  बिल तपशील उपलब्ध नाही
+                </div>
+              )}
+
+              {/* Section C — Actions */}
+              <div style={{ borderTop: '1px solid var(--border)', padding: '10px 14px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>📤 बिल पाठवा / व्यवस्थापन</div>
+                {/* Share row */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  {customer.mobile && (
+                    <button onClick={() => { const text = buildWhatsAppText({ customer, bill, items: billItemsMap[bill.id] || [], dairyName }); window.open(`https://wa.me/91${customer.mobile}?text=${encodeURIComponent(text)}`, '_blank') }}
+                      style={{ flex: 1, background: 'rgba(37,211,102,0.1)', border: '1px solid rgba(37,211,102,0.3)', borderRadius: 10, padding: '9px 6px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 18 }}>💬</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: '#25d366' }}>WhatsApp</span>
+                    </button>
+                  )}
+                  <button onClick={() => handlePrintBill(bill)}
+                    style={{ flex: 1, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '9px 6px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 18 }}>📄</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)' }}>बिल पाहा</span>
+                  </button>
+                  <button onClick={() => { const text = buildWhatsAppText({ customer, bill, items: billItemsMap[bill.id] || [], dairyName }); copyToClipboard(text, show) }}
+                    style={{ flex: 1, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: '9px 6px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 18 }}>📋</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#818cf8' }}>मजकूर कॉपी</span>
+                  </button>
+                </div>
+                {/* Lock / Delete / Unlock */}
+                {!bill.is_locked ? (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => handleLock(bill.id)}>🔒 लॉक करा</button>
+                    <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)', borderColor: 'rgba(239,68,68,0.3)', flexShrink: 0, padding: '6px 14px' }} onClick={() => setDeleteBillId(bill.id)}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+                    </button>
+                  </div>
+                ) : (
+                  <button className="btn btn-ghost btn-sm" style={{ color: 'var(--yellow)', fontSize: 12 }} onClick={e => { e.stopPropagation(); setUnlockBillId(bill.id) }}>🔓 अनलॉक</button>
+                )}
+              </div>
+
+            </div>
+          )}
+        </div>
+      )
+    })}
+  </div>
+)}
 
         {/* ── Delivery Tab — Calendar View ── */}
         {tab === 1 && (
@@ -864,9 +822,9 @@ export default function CustomerProfile() {
                     <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent)' }}>
                       {MONTH_NAMES_MR[m - 1]} {y}
                     </div>
-                    <div style={{ display: 'flex', gap: 10 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>{delivered.length} दिवस</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{totalQty % 1 === 0 ? totalQty : totalQty.toFixed(1)} एकूण</span>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: 'var(--text2)', background: 'var(--surface2)', borderRadius: 6, padding: '3px 8px' }}>{delivered.length} दिवस</span>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--green)' }}>{totalQty % 1 === 0 ? totalQty : totalQty.toFixed(1)} L</span>
                     </div>
                   </div>
 
@@ -925,12 +883,27 @@ export default function CustomerProfile() {
                     })}
                   </div>
 
-                  {/* Session legend for this month */}
-                  <div style={{ padding: '0 14px 10px', display: 'flex', gap: 6, fontSize: 11, color: 'var(--text2)' }}>
-                    <span>☀️ सकाळ (वरचा)</span>
-                    <span style={{ margin: '0 4px', color: 'var(--border)' }}>•</span>
-                    <span>🌙 संध्या (खालचा)</span>
-                  </div>
+                  {/* Month summary — morning/evening split */}
+                  {(() => {
+                    const morningDels = monthDels.filter(d => d.session === 'morning' && (d.status === 'delivered' || d.status === 'partial'))
+                    const eveningDels = monthDels.filter(d => d.session === 'evening' && (d.status === 'delivered' || d.status === 'partial'))
+                    const morningQty  = morningDels.reduce((s, d) => s + (d.qty || 0), 0)
+                    const eveningQty  = eveningDels.reduce((s, d) => s + (d.qty || 0), 0)
+                    return (
+                      <div style={{ margin: '0 10px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                        {[
+                          { label: '☀️ सकाळ', value: `${morningQty % 1 === 0 ? morningQty : morningQty.toFixed(1)} L`, color: '#f59e0b' },
+                          { label: '🌙 संध्या', value: `${eveningQty % 1 === 0 ? eveningQty : eveningQty.toFixed(1)} L`, color: '#818cf8' },
+                          { label: '📦 एकूण', value: `${totalQty % 1 === 0 ? totalQty : totalQty.toFixed(1)} L`, color: 'var(--green)' },
+                        ].map((s, i) => (
+                          <div key={i} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '7px 6px', textAlign: 'center' }}>
+                            <div style={{ fontSize: 12, fontWeight: 800, color: s.color }}>{s.value}</div>
+                            <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>{s.label}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })()}
                 </div>
               )
             })}
@@ -939,41 +912,61 @@ export default function CustomerProfile() {
 
         {/* ── Payments Tab ── */}
         {tab === 2 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {payments.length === 0 ? (
-              <div className="empty">
-                <div className="empty-icon">💰</div>
-                <div className="empty-title">पैसे जमा नाही</div>
-              </div>
-            ) : payments.map(p => (
-              <div key={p.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{p.date}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>
-                      {PAYMENT_MODES[p.mode] || p.mode}
-                      {p.notes ? ` • ${p.notes}` : ''}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--green)' }}>+{formatCurrency(p.amount)}</div>
-                </div>
-                <div style={{ borderTop: '1px solid var(--border)', background: 'rgba(0,0,0,0.08)', padding: '6px 12px', display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                  <button className="btn btn-ghost btn-sm" style={{ fontSize: 12 }} onClick={() => openEditPayment(p)}>✏️ संपादन</button>
-                  <button style={{ background: 'none', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: 'var(--red)', fontSize: 12 }}
-                    onClick={() => setDeletePayId(p.id)}>🗑️ हटवा</button>
-                </div>
-              </div>
-            ))}
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
 
-            {/* Payment total */}
-            {payments.length > 0 && (
-              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderColor: 'var(--green)33' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>एकूण जमा</span>
-                <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--green)' }}>{formatCurrency(totalPaid)}</span>
+    {/* Summary card at top */}
+    {payments.length > 0 && (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px' }}>
+          <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>एकूण जमा</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--green)' }}>{formatCurrency(totalPaid)}</div>
+        </div>
+        <div style={{ background: 'var(--surface)', border: `1px solid ${outstanding > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`, borderRadius: 12, padding: '12px 14px' }}>
+          <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>थकबाकी</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: outstanding > 0 ? 'var(--red)' : 'var(--green)' }}>{formatCurrency(outstanding)}</div>
+        </div>
+      </div>
+    )}
+
+    {payments.length === 0 ? (
+      <div className="empty">
+        <div className="empty-icon">💰</div>
+        <div className="empty-title">पैसे जमा नाही</div>
+        <div className="empty-desc">"पैसे जमा" बटण दाबून नोंद करा</div>
+      </div>
+    ) : payments.map(p => {
+      const dateParts = p.date.split('-')
+      const monthNames = ['जाने','फेब्रु','मार्च','एप्रि','मे','जून','जुलै','ऑग','सप्टे','ऑक्टो','नोव्हे','डिसे']
+      const fmtPayDate = dateParts.length === 3 ? `${parseInt(dateParts[2])} ${monthNames[parseInt(dateParts[1]) - 1]} ${dateParts[0]}` : p.date
+      const modeIcons = { cash: '💵', upi: '📲', bank: '🏦', cheque: '📝' }
+      return (
+        <div key={p.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(16,185,129,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
+                {modeIcons[p.mode] || '💰'}
               </div>
-            )}
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{fmtPayDate}</div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>
+                  {PAYMENT_MODES[p.mode] || p.mode}
+                  {p.notes ? ` • ${p.notes}` : ''}
+                </div>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--green)' }}>+{formatCurrency(p.amount)}</div>
+            </div>
           </div>
-        )}
+          <div style={{ borderTop: '1px solid var(--border)', background: 'rgba(0,0,0,0.08)', padding: '6px 12px', display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+            <button className="btn btn-ghost btn-sm" style={{ fontSize: 12 }} onClick={() => openEditPayment(p)}>✏️ संपादन</button>
+            <button style={{ background: 'none', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: 'var(--red)', fontSize: 12 }} onClick={() => setDeletePayId(p.id)}>🗑️ हटवा</button>
+          </div>
+        </div>
+      )
+    })}
+  </div>
+)}
       </div>
 
       {/* ── Payment Modal ── */}
