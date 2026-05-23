@@ -74,8 +74,9 @@ export async function generateBill(customer_id, month, year) {
   const prev_balance = Math.max(0, prevBills[0]?.amount_due || 0)
 
   // Payments this month
-  const startDate = `${year}-${String(month).padStart(2, '0')}-01`
-  const endDate   = `${year}-${String(month).padStart(2, '0')}-31`
+  const startDate   = `${year}-${String(month).padStart(2, '0')}-01`
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const endDate     = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`
   const monthPayments = await db.query(
     'SELECT * FROM payments WHERE customer_id = ? AND date >= ? AND date <= ?',
     [customer_id, startDate, endDate]
