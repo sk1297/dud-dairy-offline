@@ -322,16 +322,20 @@ export async function shareBillAsPDF({ customer, bill, items, dairyName, area })
   // 1. Create an off-screen container that does NOT affect app layout.
   //    Use position:absolute outside the visible scroll area + overflow:hidden
   //    on a wrapper so nothing shifts on screen.
+  // Use position:fixed + left:200% so the element is completely off-screen
+  // and does NOT affect scroll position (position:absolute at top:0 was causing
+  // the page to scroll to top during html2canvas capture, breaking the layout).
+  // Also: do NOT pass windowWidth to html2canvas — that option forces a full
+  // page CSS reflow at 794px viewport width, which breaks the app layout.
   const wrapper = document.createElement('div')
   wrapper.style.cssText = [
-    'position:absolute',
+    'position:fixed',
     'top:0',
-    'left:0',
-    'width:0',
-    'height:0',
-    'overflow:hidden',
+    'left:200%',       // off-screen to the right, outside any scroll area
+    'width:794px',
     'pointer-events:none',
-    'z-index:-9999',
+    'z-index:-1',
+    'visibility:visible', // must be visible so html2canvas can read styles
   ].join(';')
 
   const container = document.createElement('div')
@@ -342,19 +346,22 @@ export async function shareBillAsPDF({ customer, bill, items, dairyName, area })
   document.body.appendChild(wrapper)
 
   try {
-    // 2. Wait for fonts + layout to fully render
-    await new Promise(r => setTimeout(r, 200))
+    // 2. Wait for fonts + layout, then yield one frame so the browser
+    //    has fully painted before html2canvas locks the main thread.
+    await new Promise(r => setTimeout(r, 250))
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
 
-    // 3. Screenshot full bill with html2canvas at 2× scale
+    // 3. Screenshot full bill with html2canvas at 2× scale.
+    //    Do NOT pass windowWidth — it reflows the whole page CSS.
     const canvas = await html2canvas(container, {
       scale:           2,
       useCORS:         true,
       backgroundColor: '#ffffff',
       logging:         false,
-      // Explicitly set dimensions so html2canvas doesn't measure wrongly
       width:           794,
       height:          container.scrollHeight,
-      windowWidth:     794,
+      scrollX:         0,
+      scrollY:         0,
     })
 
     // 4. Build A4 PDF — crop canvas per page so content is never lost

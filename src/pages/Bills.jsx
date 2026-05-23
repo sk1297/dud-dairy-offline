@@ -76,6 +76,7 @@ export default function Bills() {
 
   // PDF sharing
   const [sharingBillId, setSharingBillId] = useState(null)
+  const [pdfGenerating, setPdfGenerating] = useState(false)
 
   // Payment filter
   const [payFilterCust, setPayFilterCust] = useState('')
@@ -212,13 +213,18 @@ export default function Bills() {
     const cust = customers.find(c => c.id === bill.customer_id)
     if (!cust) return
     setSharingBillId(bill.id)
+    setPdfGenerating(true)
     try {
       const items = await getBillItems(bill.id)
+      // Yield one frame so the full-screen overlay paints BEFORE html2canvas
+      // locks the main thread — prevents the "half-white broken layout" glitch.
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
       await shareBillAsPDF({ customer: cust, bill, items, dairyName })
     } catch (err) {
       show('PDF तयार करताना त्रुटी: ' + err.message, 'error')
     } finally {
       setSharingBillId(null)
+      setPdfGenerating(false)
     }
   }
 
@@ -821,6 +827,20 @@ export default function Bills() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* ══════════════════════ PDF GENERATING OVERLAY ══════════════════════ */}
+      {pdfGenerating && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0,0,0,0.75)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 16,
+        }}>
+          <span className="spinner" style={{ width: 44, height: 44, borderWidth: 4, borderTopColor: '#10b981' }} />
+          <div style={{ color: '#fff', fontSize: 16, fontWeight: 700 }}>PDF बनवत आहे...</div>
+          <div style={{ color: '#a7f3d0', fontSize: 12 }}>कृपया थांबा, हे काही सेकंद लागू शकते</div>
         </div>
       )}
 
