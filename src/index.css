@@ -22,9 +22,6 @@
   --text2:    #94a3b8;
   --radius:   12px;
   --nav-h:    64px;
-  --sat:      28px; /* Android status bar height fallback (24-28dp on all devices).
-                       JS in main.jsx tries to measure the exact value via env()
-                       and overrides this. 28px is safe even if env() returns 0. */
 }
 
 *, *::before, *::after {
@@ -73,9 +70,6 @@ body {
   flex-direction: column;
   position: relative;
   background: var(--bg);
-  /* padding-top reserves the status bar area permanently with app background.
-     Content never reaches y=0 to y=--sat, so nothing appears behind wifi/battery icons. */
-  padding-top: var(--sat);
 }
 
 /* ── OFFLINE BANNER ── */
@@ -91,12 +85,10 @@ body {
   justify-content: center;
 }
 
-/* ── HEADER ──
-   Sticks at top: var(--sat) = just below the reserved status bar space.
-   .app-shell padding-top: var(--sat) ensures no content ever reaches above this. */
+/* ── HEADER ── */
 .header {
   position: sticky;
-  top: var(--sat);
+  top: 0;
   z-index: 40;
   background: var(--surface);
   border-bottom: 1px solid var(--border);

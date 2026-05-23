@@ -274,7 +274,7 @@ export default function Dashboard() {
       {/* ── Header ── */}
       <div style={{
         position: 'sticky',
-        top: 'var(--sat)',
+        top: 0,
         zIndex: 40,
         background: 'var(--surface)', borderBottom: '1px solid var(--border)',
         padding: '0 16px',
