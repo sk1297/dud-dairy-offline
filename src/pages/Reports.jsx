@@ -825,31 +825,34 @@ export default function Reports() {
                 {(() => {
                   const data   = chartData
                   const maxVal = Math.max(...data.flatMap(d => [d.billed, d.collected]), 1)
-                  const W = 70, H = 150, BAR = 26, GAP = 4, BOTTOM = 30
+                  const W = 70, H = 150, TOP = 16, BAR = 26, GAP = 4, BOTTOM = 30
                   const gridPcts = [0.25, 0.5, 0.75]
                   return (
-                    <svg width="100%" height={H + BOTTOM} viewBox={`0 0 ${data.length * W} ${H + BOTTOM}`} preserveAspectRatio="xMidYMid meet">
-                      {/* Grid lines */}
+                    <svg width="100%" height={TOP + H + BOTTOM} viewBox={`0 0 ${data.length * W} ${TOP + H + BOTTOM}`} preserveAspectRatio="xMidYMid meet">
+                      {/* Grid lines — shifted by TOP */}
                       {gridPcts.map((p, i) => (
-                        <line key={i} x1={0} y1={H - p * H} x2={data.length * W} y2={H - p * H} stroke="var(--border)" strokeWidth={0.5} strokeDasharray="3 3" opacity={0.5} />
+                        <line key={i} x1={0} y1={TOP + H - p * H} x2={data.length * W} y2={TOP + H - p * H} stroke="var(--border)" strokeWidth={0.5} strokeDasharray="3 3" opacity={0.5} />
                       ))}
                       {/* Baseline */}
-                      <line x1={0} y1={H} x2={data.length * W} y2={H} stroke="var(--border)" strokeWidth={1} />
+                      <line x1={0} y1={TOP + H} x2={data.length * W} y2={TOP + H} stroke="var(--border)" strokeWidth={1} />
 
                       {data.map((d, i) => {
                         const billedH    = maxVal > 0 ? (d.billed    / maxVal) * H : 0
                         const collectedH = maxVal > 0 ? (d.collected / maxVal) * H : 0
                         const xBase      = i * W + (W - BAR * 2 - GAP) / 2
                         const outstandingH = Math.max(0, billedH - collectedH)
+                        const billedY    = TOP + H - billedH
+                        const collectedY = TOP + H - collectedH
                         return (
                           <g key={i}>
-                            <rect x={xBase} y={H - billedH} width={BAR} height={billedH} rx={4} fill="rgba(139,92,246,0.35)" />
-                            <rect x={xBase} y={H - collectedH} width={BAR} height={collectedH} rx={4} fill="#8b5cf6" />
-                            {outstandingH > 2 && <rect x={xBase} y={H - billedH} width={BAR} height={outstandingH} rx={4} fill="rgba(239,68,68,0.35)" />}
-                            <rect x={xBase + BAR + GAP} y={H - collectedH} width={BAR} height={collectedH} rx={4} fill="#10b981" />
-                            {d.billed > 0 && <text x={xBase + BAR / 2} y={H - billedH - 4} textAnchor="middle" fill="#a78bfa" fontSize="9">₹{(d.billed/1000).toFixed(1)}k</text>}
-                            {d.collected > 0 && <text x={xBase + BAR + GAP + BAR / 2} y={H - collectedH - 4} textAnchor="middle" fill="#34d399" fontSize="9">₹{(d.collected/1000).toFixed(1)}k</text>}
-                            <text x={i * W + W / 2} y={H + 18} textAnchor="middle" fill="#94a3b8" fontSize="11">{d.month}</text>
+                            <rect x={xBase} y={billedY} width={BAR} height={billedH} rx={4} fill="rgba(139,92,246,0.35)" />
+                            <rect x={xBase} y={collectedY} width={BAR} height={collectedH} rx={4} fill="#8b5cf6" />
+                            {outstandingH > 2 && <rect x={xBase} y={billedY} width={BAR} height={outstandingH} rx={4} fill="rgba(239,68,68,0.35)" />}
+                            <rect x={xBase + BAR + GAP} y={collectedY} width={BAR} height={collectedH} rx={4} fill="#10b981" />
+                            {/* labels clamped so they never go above TOP */}
+                            {d.billed > 0 && <text x={xBase + BAR / 2} y={Math.max(billedY - 4, TOP - 2)} textAnchor="middle" fill="#a78bfa" fontSize="9">₹{(d.billed/1000).toFixed(1)}k</text>}
+                            {d.collected > 0 && <text x={xBase + BAR + GAP + BAR / 2} y={Math.max(collectedY - 4, TOP - 2)} textAnchor="middle" fill="#34d399" fontSize="9">₹{(d.collected/1000).toFixed(1)}k</text>}
+                            <text x={i * W + W / 2} y={TOP + H + 18} textAnchor="middle" fill="#94a3b8" fontSize="11">{d.month}</text>
                           </g>
                         )
                       })}

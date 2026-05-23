@@ -49,7 +49,7 @@ export function DeliveryRing({ served, total }) {
 // data: [{ date:'YYYY-MM-DD', qty:number }] — must be pre-filled for all 7 days
 export function MiniTrendBars({ data }) {
   if (!data || data.length === 0) return null
-  const W = 51, H = 50, BOTTOM = 18
+  const W = 51, H = 50, TOP = 14, BOTTOM = 18
   const maxQty = Math.max(...data.map(d => d.qty), 0.1)
   const today  = new Date().toISOString().split('T')[0]
 
@@ -59,28 +59,26 @@ export function MiniTrendBars({ data }) {
   }
 
   return (
-    <svg width="100%" viewBox={`0 0 ${data.length * W} ${H + BOTTOM}`} preserveAspectRatio="xMidYMid meet">
+    <svg width="100%" viewBox={`0 0 ${data.length * W} ${TOP + H + BOTTOM}`} preserveAspectRatio="xMidYMid meet">
       {data.map((d, i) => {
-        const barH   = maxQty > 0 ? (d.qty / maxQty) * H : 2
+        const barH    = maxQty > 0 ? (d.qty / maxQty) * H : 2
         const isToday = d.date === today
-        const barX   = i * W + (W - 22) / 2
-        const barY   = H - barH
+        const barX    = i * W + (W - 22) / 2
+        const barY    = TOP + H - barH          // shifted down by TOP
         return (
           <g key={i}>
-            {/* bar */}
             <rect
               x={barX} y={barY} width={22} height={Math.max(barH, 3)}
               rx={4}
               fill={isToday ? '#10b981' : 'rgba(16,185,129,0.45)'}
             />
-            {/* qty label above bar */}
+            {/* label safely inside viewBox — minimum y = TOP */}
             {d.qty > 0 && (
-              <text x={barX + 11} y={barY - 3} textAnchor="middle" fill={isToday ? '#10b981' : 'var(--text2)'} fontSize={9} fontWeight={isToday ? 800 : 500} fontFamily="inherit">
+              <text x={barX + 11} y={Math.max(barY - 3, TOP - 2)} textAnchor="middle" fill={isToday ? '#10b981' : 'var(--text2)'} fontSize={9} fontWeight={isToday ? 800 : 500} fontFamily="inherit">
                 {d.qty.toFixed(1)}
               </text>
             )}
-            {/* day label */}
-            <text x={i * W + W / 2} y={H + 14} textAnchor="middle" fill={isToday ? '#10b981' : 'var(--text2)'} fontSize={11} fontWeight={isToday ? 800 : 500} fontFamily="inherit">
+            <text x={i * W + W / 2} y={TOP + H + 14} textAnchor="middle" fill={isToday ? '#10b981' : 'var(--text2)'} fontSize={11} fontWeight={isToday ? 800 : 500} fontFamily="inherit">
               {dayLabel(d.date)}
             </text>
           </g>
@@ -208,7 +206,7 @@ export function PaymentModeDonut({ modes }) {
 // data: [{ month:'मार्च', billed:number, collected:number }] — 6 items
 export function EfficiencyLine({ data }) {
   if (!data || data.length === 0) return null
-  const W = 360, H = 70, BOTTOM = 20, LEFT = 28
+  const W = 360, H = 70, TOP = 16, BOTTOM = 20, LEFT = 28
   const plotW = W - LEFT
   const slotW = plotW / data.length
 
@@ -218,8 +216,8 @@ export function EfficiencyLine({ data }) {
     month: d.month,
   }))
 
-  // y coordinate (0% = bottom, 100% = top)
-  const yFor = (pct) => H - (pct / 100) * H
+  // y coordinate (0% = bottom=TOP+H, 100% = top=TOP)
+  const yFor = (pct) => TOP + H - (pct / 100) * H
 
   // Dashed threshold lines
   const y90 = yFor(90)
@@ -228,7 +226,7 @@ export function EfficiencyLine({ data }) {
   const polylinePoints = points.map(p => `${p.x},${yFor(p.pct)}`).join(' ')
 
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H + BOTTOM}`} preserveAspectRatio="xMidYMid meet">
+    <svg width="100%" viewBox={`0 0 ${W} ${TOP + H + BOTTOM}`} preserveAspectRatio="xMidYMid meet">
       {/* Y-axis labels */}
       <text x={LEFT - 4} y={y90 + 4} textAnchor="end" fill="#10b981" fontSize={9} fontFamily="inherit">90%</text>
       <text x={LEFT - 4} y={y70 + 4} textAnchor="end" fill="#f59e0b" fontSize={9} fontFamily="inherit">70%</text>
@@ -237,7 +235,7 @@ export function EfficiencyLine({ data }) {
       <line x1={LEFT} y1={y90} x2={W} y2={y90} stroke="#10b981" strokeWidth={1} strokeDasharray="4 3" opacity={0.5} />
       <line x1={LEFT} y1={y70} x2={W} y2={y70} stroke="#f59e0b" strokeWidth={1} strokeDasharray="4 3" opacity={0.5} />
       {/* Baseline */}
-      <line x1={LEFT} y1={H} x2={W} y2={H} stroke="var(--border)" strokeWidth={1} />
+      <line x1={LEFT} y1={TOP + H} x2={W} y2={TOP + H} stroke="var(--border)" strokeWidth={1} />
 
       {/* Trend polyline */}
       <polyline points={polylinePoints} fill="none" stroke="#8b5cf6" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
@@ -248,11 +246,11 @@ export function EfficiencyLine({ data }) {
         return (
           <g key={i}>
             <circle cx={p.x} cy={yFor(p.pct)} r={5} fill={dotColor} stroke="var(--bg)" strokeWidth={2} />
-            <text x={p.x} y={yFor(p.pct) - 9} textAnchor="middle" fill={dotColor} fontSize={9} fontWeight={700} fontFamily="inherit">
+            {/* label clamped so it never goes above y=TOP */}
+            <text x={p.x} y={Math.max(yFor(p.pct) - 9, TOP - 2)} textAnchor="middle" fill={dotColor} fontSize={9} fontWeight={700} fontFamily="inherit">
               {p.pct.toFixed(0)}%
             </text>
-            {/* Month label */}
-            <text x={p.x} y={H + 14} textAnchor="middle" fill="var(--text2)" fontSize={10} fontFamily="inherit">{p.month}</text>
+            <text x={p.x} y={TOP + H + 14} textAnchor="middle" fill="var(--text2)" fontSize={10} fontFamily="inherit">{p.month}</text>
           </g>
         )
       })}
@@ -265,34 +263,32 @@ export function EfficiencyLine({ data }) {
 // data: [{ month:'मार्च', liters:number }]
 export function LitersTrendBars({ data }) {
   if (!data || data.length === 0) return null
-  const W = 360, H = 90, BOTTOM = 20
+  const W = 360, H = 90, TOP = 16, BOTTOM = 20
   const slotW  = W / data.length
   const barW   = slotW * 0.65
   const maxL   = Math.max(...data.map(d => d.liters), 0.1)
 
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H + BOTTOM}`} preserveAspectRatio="xMidYMid meet">
-      {/* Grid lines at 50% */}
-      <line x1={0} y1={H / 2} x2={W} y2={H / 2} stroke="var(--border)" strokeWidth={1} strokeDasharray="3 3" opacity={0.5} />
+    <svg width="100%" viewBox={`0 0 ${W} ${TOP + H + BOTTOM}`} preserveAspectRatio="xMidYMid meet">
+      {/* Grid line at 50% */}
+      <line x1={0} y1={TOP + H / 2} x2={W} y2={TOP + H / 2} stroke="var(--border)" strokeWidth={1} strokeDasharray="3 3" opacity={0.5} />
       {/* Baseline */}
-      <line x1={0} y1={H} x2={W} y2={H} stroke="var(--border)" strokeWidth={1} />
+      <line x1={0} y1={TOP + H} x2={W} y2={TOP + H} stroke="var(--border)" strokeWidth={1} />
 
       {data.map((d, i) => {
         const barH = d.liters > 0 ? Math.max((d.liters / maxL) * H, 4) : 0
         const barX = i * slotW + (slotW - barW) / 2
-        const barY = H - barH
+        const barY = TOP + H - barH             // shifted down by TOP
         return (
           <g key={i}>
-            {/* Bar with gradient feel via two rects */}
             <rect x={barX} y={barY} width={barW} height={barH} rx={4} fill="#06b6d4" opacity={0.85} />
-            {/* Value label */}
+            {/* label safely clamped — never above TOP */}
             {d.liters > 0 && (
-              <text x={barX + barW / 2} y={barY - 4} textAnchor="middle" fill="#06b6d4" fontSize={9} fontWeight={700} fontFamily="inherit">
+              <text x={barX + barW / 2} y={Math.max(barY - 4, TOP - 2)} textAnchor="middle" fill="#06b6d4" fontSize={9} fontWeight={700} fontFamily="inherit">
                 {d.liters >= 1000 ? (d.liters / 1000).toFixed(1) + 'k' : d.liters.toFixed(0)}
               </text>
             )}
-            {/* Month label */}
-            <text x={barX + barW / 2} y={H + 14} textAnchor="middle" fill="var(--text2)" fontSize={10} fontFamily="inherit">{d.month}</text>
+            <text x={barX + barW / 2} y={TOP + H + 14} textAnchor="middle" fill="var(--text2)" fontSize={10} fontFamily="inherit">{d.month}</text>
           </g>
         )
       })}
