@@ -269,13 +269,18 @@ export default function Dashboard() {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', background: 'var(--bg)' }}>
 
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      {/* ── Header — same safe-area pattern as .header CSS class ── */}
       <div style={{
-        position: 'sticky', top: 0, zIndex: 40,
+        position: 'sticky',
+        top: 'env(safe-area-inset-top, 0px)',
+        zIndex: 40,
         background: 'var(--surface)', borderBottom: '1px solid var(--border)',
-        padding: '0 16px', minHeight: 56,
+        padding: '0 16px',
+        paddingTop: 'calc(env(safe-area-inset-top, 0px))',
+        marginTop: 'calc(-1 * env(safe-area-inset-top, 0px))',
+        minHeight: 56,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -293,7 +298,8 @@ export default function Dashboard() {
         <div style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 700, letterSpacing: 0.3, flexShrink: 0 }}>{timeStr}</div>
       </div>
 
-      <div ref={dashRef} style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', gap: 14, position: 'relative', overflowY: 'auto' }}>
+      {/* flex:1 + minHeight:0 lets this div fill remaining height and scroll */}
+      <div ref={dashRef} style={{ flex: 1, minHeight: 0, padding: 16, paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px)', display: 'flex', flexDirection: 'column', gap: 14, position: 'relative', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {dashRefreshIndicator}
 
         {/* ── Hero Card ──────────────────────────────────────────────────────── */}
