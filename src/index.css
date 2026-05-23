@@ -73,9 +73,9 @@ body {
   flex-direction: column;
   position: relative;
   background: var(--bg);
-  /* NO padding-top here — padding on .app-shell scrolls away, causing the
-     sticky header to snap to top:0 = behind the status bar on scroll.
-     Safe-area is handled by .header padding-top instead. */
+  /* padding-top reserves the status bar area permanently with app background.
+     Content never reaches y=0 to y=--sat, so nothing appears behind wifi/battery icons. */
+  padding-top: var(--sat);
 }
 
 /* ── OFFLINE BANNER ── */
@@ -92,18 +92,15 @@ body {
 }
 
 /* ── HEADER ──
-   Edge-to-edge pattern: header sticks at top:0 (top of screen, behind
-   status bar). padding-top pushes the header CONTENT below the status bar
-   while the header background fills the status bar area. This way the
-   sticky position is always correct regardless of scroll state. */
+   Sticks at top: var(--sat) = just below the reserved status bar space.
+   .app-shell padding-top: var(--sat) ensures no content ever reaches above this. */
 .header {
   position: sticky;
-  top: 0;
+  top: var(--sat);
   z-index: 40;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   padding: 12px 16px;
-  padding-top: calc(12px + var(--sat, env(safe-area-inset-top, 0px)));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -141,7 +138,7 @@ body {
 .page-root {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  flex: 1;
   background: var(--bg);
   padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 36px) + 24px);
 }

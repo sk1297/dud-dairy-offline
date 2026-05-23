@@ -269,16 +269,15 @@ export default function Dashboard() {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', background: 'var(--bg)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: 'var(--bg)' }}>
 
       {/* ── Header ── */}
       <div style={{
         position: 'sticky',
-        top: 0,
+        top: 'var(--sat)',
         zIndex: 40,
         background: 'var(--surface)', borderBottom: '1px solid var(--border)',
         padding: '0 16px',
-        paddingTop: 'var(--sat, env(safe-area-inset-top, 0px))',
         minHeight: 56,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
       }}>
@@ -298,7 +297,7 @@ export default function Dashboard() {
       </div>
 
       {/* flex:1 + minHeight:0 lets this div fill remaining height and scroll */}
-      <div ref={dashRef} style={{ flex: 1, minHeight: 0, padding: 16, paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 24px)', display: 'flex', flexDirection: 'column', gap: 14, position: 'relative', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div ref={dashRef} style={{ flex: 1, minHeight: 0, padding: 16, paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 36px) + 24px)', display: 'flex', flexDirection: 'column', gap: 14, position: 'relative', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {dashRefreshIndicator}
 
         {/* ── Hero Card ──────────────────────────────────────────────────────── */}
