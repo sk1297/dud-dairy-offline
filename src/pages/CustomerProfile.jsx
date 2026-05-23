@@ -10,6 +10,7 @@ import db from '../db/database.js'
 import { getBillItems, generateBill, lockBill, unlockBill, deleteBill } from '../services/billService.js'
 import { getCustomerPayments, addPayment, updatePayment, deletePayment } from '../services/paymentService.js'
 import { getCustomerProducts, PRODUCT_TYPE_COLOR, PRODUCT_TYPE_TINT } from '../services/productService.js'
+import { shareBillAsPDF } from '../utils/billPdf.js'
 
 const MONTH_NAMES_MR = ['जानेवारी','फेब्रुवारी','मार्च','एप्रिल','मे','जून','जुलै','ऑगस्ट','सप्टेंबर','ऑक्टोबर','नोव्हेंबर','डिसेंबर']
 const SESSION_LABEL  = { morning: '☀️ सकाळ', evening: '🌙 संध्या' }
@@ -733,13 +734,24 @@ export default function CustomerProfile() {
                 <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>📤 बिल पाठवा / व्यवस्थापन</div>
                 {/* Share row */}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                  {customer.mobile && (
-                    <button onClick={() => { const text = buildWhatsAppText({ customer, bill, items: billItemsMap[bill.id] || [], dairyName }); window.open(`https://wa.me/91${customer.mobile}?text=${encodeURIComponent(text)}`, '_blank') }}
-                      style={{ flex: 1, background: 'rgba(37,211,102,0.1)', border: '1px solid rgba(37,211,102,0.3)', borderRadius: 10, padding: '9px 6px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                      <span style={{ fontSize: 18 }}>💬</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: '#25d366' }}>WhatsApp</span>
-                    </button>
-                  )}
+                  {/* PDF Share — opens Android share sheet (WhatsApp, Gmail, Drive etc.) */}
+                  <button
+                    onClick={async () => {
+                      try {
+                        let billItems = billItemsMap[bill.id]
+                        if (!billItems) {
+                          billItems = await db.query('SELECT * FROM bill_items WHERE bill_id = ?', [bill.id])
+                          setBillItemsMap(prev => ({ ...prev, [bill.id]: billItems }))
+                        }
+                        await shareBillAsPDF({ customer, bill, items: billItems, dairyName, area })
+                      } catch (err) {
+                        if (!err?.message?.includes('cancel') && !err?.message?.includes('abort')) show('PDF त्रुटी: ' + err.message, 'error')
+                      }
+                    }}
+                    style={{ flex: 1, background: 'rgba(37,211,102,0.1)', border: '1px solid rgba(37,211,102,0.3)', borderRadius: 10, padding: '9px 6px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 18 }}>📤</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#25d366' }}>PDF शेअर</span>
+                  </button>
                   <button onClick={() => handlePrintBill(bill)}
                     style={{ flex: 1, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '9px 6px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                     <span style={{ fontSize: 18 }}>📄</span>

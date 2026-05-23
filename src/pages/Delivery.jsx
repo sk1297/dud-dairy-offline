@@ -458,6 +458,7 @@ export default function Delivery() {
   const [areas,         setAreas]         = useState([])
   const [products,      setProducts]      = useState([])
   const [custExtraSubs, setCustExtraSubs] = useState({})
+  const [dairyName,     setDairyName]     = useState('दूध डेअरी')
   const [loading,       setLoading]       = useState(true)
   const [partialModal,  setPartialModal]  = useState(null)
   const [partialQty,    setPartialQty]    = useState('')
@@ -471,12 +472,14 @@ export default function Delivery() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [custs, areaList, delivList, prodList] = await Promise.all([
-        getActiveCustomers(), getAreas(), getDeliveriesForDate(date), getProducts()
+      const [custs, areaList, delivList, prodList, settingRow] = await Promise.all([
+        getActiveCustomers(), getAreas(), getDeliveriesForDate(date), getProducts(),
+        db.first("SELECT value FROM settings WHERE key = 'dairy_name' LIMIT 1"),
       ])
       setCustomers(custs)
       setAreas(areaList)
       setProducts(prodList)
+      if (settingRow?.value) setDairyName(settingRow.value)
 
       const map = {}
       for (const d of delivList) {
@@ -744,6 +747,21 @@ export default function Delivery() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {/* WhatsApp notification button — only if delivered + has mobile */}
+                  {isDone && c.mobile && (() => {
+                    const delivQty = primaryDelivery?.qty || primaryQty
+                    const prodName = primaryProduct?.name || 'दूध'
+                    const unit     = primaryProduct?.unit || 'L'
+                    const sessionLabel = session === 'morning' ? '☀️ सकाळ' : '🌙 संध्याकाळ'
+                    const msg = `🥛 नमस्कार ${c.name} जी!\n\nआपले दूध पोहोचले ✓\n${sessionLabel}: ${delivQty}${unit} ${prodName}\nदिनांक: ${date}\n\n— ${dairyName}`
+                    return (
+                      <button
+                        onClick={() => window.open(`https://wa.me/91${c.mobile}?text=${encodeURIComponent(msg)}`, '_blank')}
+                        title="WhatsApp वर सूचना पाठवा"
+                        style={{ width: 34, height: 34, borderRadius: 8, background: 'rgba(37,211,102,0.12)', border: '1px solid rgba(37,211,102,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}
+                      >💬</button>
+                    )
+                  })()}
                   {primaryProduct && (
                     <span className="badge" style={{ background: PRODUCT_TYPE_TINT[primaryProduct.type], color: PRODUCT_TYPE_COLOR[primaryProduct.type] }}>
                       {primaryProduct.type === 'milk_buffalo' ? '🐃' : '🐄'} {primaryProduct.name}
