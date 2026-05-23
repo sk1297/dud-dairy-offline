@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header.jsx'
 import TextInput from '../components/TextInput.jsx'
@@ -11,69 +11,142 @@ import { getAreas } from '../services/areaService.js'
 import { getCustomers, addCustomer, updateCustomer, deleteCustomer } from '../services/customerService.js'
 import { getProducts, getCustomerProducts, addCustomerProduct, deleteCustomerProduct, PRODUCT_TYPE_COLOR, PRODUCT_TYPE_TINT } from '../services/productService.js'
 import { upsertDelivery } from '../services/deliveryService.js'
-import { todayStr, getInitials } from '../utils.js'
+import { todayStr, getInitials, formatCurrency } from '../utils.js'
 
 const STATUS_LABELS = { active: 'सक्रिय', paused: 'थांबले', stopped: 'बंद' }
 const STATUS_COLORS = { active: 'green',  paused: 'yellow',  stopped: 'red'  }
+const STATUS_BG     = { active: 'rgba(16,185,129,0.1)', paused: 'rgba(234,179,8,0.1)', stopped: 'rgba(239,68,68,0.1)' }
+const STATUS_ACCENT = { active: 'var(--green)', paused: 'var(--yellow)', stopped: 'var(--red)' }
+
+const SORT_OPTIONS = [
+  { label: 'नावाने (A-Z)',         value: 'name' },
+  { label: 'थकबाकी (जास्त → कमी)', value: 'outstanding' },
+  { label: 'आजची डिलिव्हरी बाकी', value: 'pending_first' },
+  { label: 'नवीन ग्राहक आधी',      value: 'newest' },
+]
 
 const EMPTY_FORM = {
   name: '', mobile: '', address: '', area_id: '',
-  product_id: '',        // primary product (milk type)
+  product_id: '',
   morning_qty: '', evening_qty: '', rate: '',
   status: 'active', start_date: todayStr(),
 }
 
 export default function Customers() {
   const { show } = useToast()
-  const navigate = useNavigate()
+  const navigate  = useNavigate()
+
+  // ── Data ─────────────────────────────────────────────────────────────────
   const [customers, setCustomers] = useState([])
   const [areas,     setAreas]     = useState([])
-  const [products,  setProducts]  = useState([])  // all active products
-  const [search,    setSearch]    = useState('')
-  const [areaFilter, setAreaFilter] = useState('all')
-  const [modal,     setModal]     = useState(null)  // 'add' | 'edit' | 'delete'
-  const [selected,  setSelected]  = useState(null)
-  const [form,      setForm]      = useState(EMPTY_FORM)
-  const [errors,    setErrors]    = useState({})
-  const [saving,    setSaving]    = useState(false)
-  const [defaultRate, setDefaultRate] = useState('62')
+  const [products,  setProducts]  = useState([])
+  const [outstanding, setOutstanding] = useState({}) // { custId: amount }
   const [todayDelivered, setTodayDelivered] = useState({}) // { custId: bool }
+  const [todayQty,  setTodayQty]  = useState(0)  // total litres delivered today
 
-  // Extra product subscriptions (for add/edit modal)
-  const [extraSubs,    setExtraSubs]    = useState([])  // existing saved subs
-  const [newExtraSub,  setNewExtraSub]  = useState({ product_id: '', morning_qty: '', evening_qty: '', rate: '' })
+  // ── Filters ───────────────────────────────────────────────────────────────
+  const [search,       setSearch]       = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')  // all | active | paused | stopped
+  const [areaFilter,   setAreaFilter]   = useState('all')
+  const [sortBy,       setSortBy]       = useState('name')
+
+  // ── Modals ────────────────────────────────────────────────────────────────
+  const [modal,    setModal]    = useState(null)   // 'add' | 'edit' | 'delete' | 'filters'
+  const [selected, setSelected] = useState(null)
+  const [form,     setForm]     = useState(EMPTY_FORM)
+  const [errors,   setErrors]   = useState({})
+  const [saving,   setSaving]   = useState(false)
+  const [deleteBillCount, setDeleteBillCount] = useState(0)
+
+  // ── Extra product subscriptions ───────────────────────────────────────────
+  const [extraSubs,     setExtraSubs]     = useState([])
+  const [newExtraSub,   setNewExtraSub]   = useState({ product_id: '', morning_qty: '', evening_qty: '', rate: '' })
   const [showExtraForm, setShowExtraForm] = useState(false)
+  const [defaultRate,   setDefaultRate]   = useState('62')
 
+  // ── Active form section (for add/edit modal) ──────────────────────────────
+  const [formSection, setFormSection] = useState(0) // 0=ओळख 1=डिलिव्हरी 2=अतिरिक्त
+
+  // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     const [custs, areaList, prodList] = await Promise.all([getCustomers(), getAreas(), getProducts()])
     setCustomers(custs)
     setAreas(areaList)
     setProducts(prodList)
-    const rateSetting = await db.first("SELECT value FROM settings WHERE key = 'default_rate' LIMIT 1")
+
+    const rateSetting = await db.first("SELECT value FROM settings WHERE key='default_rate' LIMIT 1")
     if (rateSetting) setDefaultRate(rateSetting.value)
-    // Load today's morning deliveries
+
+    // Today's deliveries
     const today = todayStr()
-    const deliveries = await db.query('SELECT * FROM deliveries WHERE date = ?', [today])
-    const map = {}
-    deliveries.forEach(d => { if (d.session === 'morning' && d.status === 'delivered') map[d.customer_id] = true })
-    setTodayDelivered(map)
+    const deliveries = await db.query('SELECT * FROM deliveries WHERE date=?', [today])
+    const dMap = {}
+    let qtySum = 0
+    deliveries.forEach(d => {
+      if (d.status === 'delivered') {
+        dMap[d.customer_id] = true
+        qtySum += (d.qty || 0)
+      }
+    })
+    setTodayDelivered(dMap)
+    setTodayQty(qtySum)
+
+    // Outstanding per customer (billed - paid)
+    const outRows = await db.query(`
+      SELECT c.id,
+        COALESCE((SELECT SUM(mb.total_amount) FROM monthly_bills mb WHERE mb.customer_id=c.id),0)
+        - COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.customer_id=c.id),0) as due
+      FROM customers c
+    `)
+    const oMap = {}
+    outRows.forEach(r => { oMap[r.id] = Math.max(0, r.due || 0) })
+    setOutstanding(oMap)
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  const { containerRef: custListRef, indicator: custRefreshIndicator } = usePullToRefresh(load)
+  const { containerRef, indicator: refreshIndicator } = usePullToRefresh(load)
 
-  // Milk products only (for primary product selector)
-  const milkProducts = products.filter(p => p.type === 'milk_buffalo' || p.type === 'milk_cow')
-  // All products EXCEPT the currently selected primary — so cow+buffalo can both be subscribed
+  // ── Derived counts ────────────────────────────────────────────────────────
+  const counts = useMemo(() => ({
+    all:     customers.length,
+    active:  customers.filter(c => c.status === 'active').length,
+    paused:  customers.filter(c => c.status === 'paused').length,
+    stopped: customers.filter(c => c.status === 'stopped').length,
+  }), [customers])
+
+  const todayDoneCount    = Object.values(todayDelivered).filter(Boolean).length
+  const todayPendingCount = customers.filter(c => c.status === 'active' && !todayDelivered[c.id]).length
+
+  // ── Filter + Sort ─────────────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    let list = customers.filter(c => {
+      if (statusFilter !== 'all' && c.status !== statusFilter) return false
+      if (areaFilter !== 'all' && c.area_id !== parseInt(areaFilter)) return false
+      if (search) {
+        const q = search.toLowerCase()
+        if (!c.name.toLowerCase().includes(q) && !(c.mobile && c.mobile.includes(q))) return false
+      }
+      return true
+    })
+
+    switch (sortBy) {
+      case 'outstanding':    list = [...list].sort((a,b) => (outstanding[b.id]||0) - (outstanding[a.id]||0)); break
+      case 'pending_first':  list = [...list].sort((a,b) => (todayDelivered[a.id]?1:0) - (todayDelivered[b.id]?1:0)); break
+      case 'newest':         list = [...list].sort((a,b) => b.id - a.id); break
+      default:               list = [...list].sort((a,b) => a.name.localeCompare(b.name, 'mr')); break
+    }
+    return list
+  }, [customers, statusFilter, areaFilter, search, sortBy, outstanding, todayDelivered])
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  const milkProducts  = products.filter(p => p.type === 'milk_buffalo' || p.type === 'milk_cow')
   const extraProducts = products.filter(p => p.id !== parseInt(form.product_id || '0'))
+  const primaryProduct = products.find(p => p.id === parseInt(form.product_id))
 
-  const filtered = customers.filter(c => {
-    const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase()) || (c.mobile && c.mobile.includes(search))
-    const matchArea   = areaFilter === 'all' || c.area_id === parseInt(areaFilter)
-    return matchSearch && matchArea
-  })
+  const hasActiveFilters = statusFilter !== 'all' || areaFilter !== 'all' || sortBy !== 'name'
 
+  // ── Open modals ───────────────────────────────────────────────────────────
   const openAdd = () => {
     const defaultMilk = milkProducts[0]
     setForm({ ...EMPTY_FORM, product_id: defaultMilk?.id || '', rate: defaultMilk?.default_rate || defaultRate })
@@ -81,6 +154,7 @@ export default function Customers() {
     setExtraSubs([])
     setNewExtraSub({ product_id: '', morning_qty: '', evening_qty: '', rate: '' })
     setShowExtraForm(false)
+    setFormSection(0)
     setModal('add')
   }
 
@@ -95,21 +169,20 @@ export default function Customers() {
     setErrors({})
     setShowExtraForm(false)
     setNewExtraSub({ product_id: '', morning_qty: '', evening_qty: '', rate: '' })
-    // Load existing extra subscriptions
+    setFormSection(0)
     const subs = await getCustomerProducts(c.id)
     setExtraSubs(subs)
     setModal('edit')
   }
 
-  const [deleteBillCount, setDeleteBillCount] = useState(0)
-
   const openDelete = async (c) => {
     setSelected(c)
-    const bills = await db.query('SELECT id FROM monthly_bills WHERE customer_id = ?', [c.id])
+    const bills = await db.query('SELECT id FROM monthly_bills WHERE customer_id=?', [c.id])
     setDeleteBillCount(bills.length)
     setModal('delete')
   }
 
+  // ── Validate + Save ───────────────────────────────────────────────────────
   const validate = () => {
     const e = {}
     if (!form.name.trim())  e.name = 'नाव आवश्यक आहे'
@@ -139,21 +212,13 @@ export default function Customers() {
       let custId
       if (modal === 'add') {
         custId = await addCustomer(data)
-        // Save any queued extra product subscriptions
         for (const sub of extraSubs.filter(s => s._temp)) {
-          await addCustomerProduct({
-            customer_id: custId,
-            product_id:  sub.product_id,
-            morning_qty: sub.morning_qty,
-            evening_qty: sub.evening_qty,
-            rate:        sub.rate,
-          })
+          await addCustomerProduct({ customer_id: custId, product_id: sub.product_id, morning_qty: sub.morning_qty, evening_qty: sub.evening_qty, rate: sub.rate })
         }
-        show('ग्राहक जोडला गेला', 'success')
+        show('ग्राहक जोडला गेला ✓', 'success')
       } else {
-        custId = selected.id
         await updateCustomer(selected.id, data)
-        show('माहिती अपडेट झाली', 'success')
+        show('माहिती अपडेट झाली ✓', 'success')
       }
       setModal(null)
       load()
@@ -175,33 +240,18 @@ export default function Customers() {
     }
   }
 
-  // Add an extra product subscription
+  // ── Extra product subs ────────────────────────────────────────────────────
   const handleAddExtraSub = async () => {
     if (!newExtraSub.product_id) { show('उत्पादन निवडा', 'warning'); return }
     if (!newExtraSub.rate)       { show('दर टाका', 'warning'); return }
     if (modal === 'edit' && selected) {
-      // Save immediately for edit mode
-      await addCustomerProduct({
-        customer_id: selected.id,
-        product_id:  parseInt(newExtraSub.product_id),
-        morning_qty: parseFloat(newExtraSub.morning_qty) || 0,
-        evening_qty: parseFloat(newExtraSub.evening_qty) || 0,
-        rate:        parseFloat(newExtraSub.rate),
-      })
+      await addCustomerProduct({ customer_id: selected.id, product_id: parseInt(newExtraSub.product_id), morning_qty: parseFloat(newExtraSub.morning_qty)||0, evening_qty: parseFloat(newExtraSub.evening_qty)||0, rate: parseFloat(newExtraSub.rate) })
       const subs = await getCustomerProducts(selected.id)
       setExtraSubs(subs)
       show('उत्पादन जोडले', 'success')
     } else {
-      // For add mode, just queue it — save after customer is created
       const product = products.find(p => p.id === parseInt(newExtraSub.product_id))
-      setExtraSubs(prev => [...prev, {
-        _temp: true,
-        product_id: parseInt(newExtraSub.product_id),
-        product,
-        morning_qty: parseFloat(newExtraSub.morning_qty) || 0,
-        evening_qty: parseFloat(newExtraSub.evening_qty) || 0,
-        rate: parseFloat(newExtraSub.rate),
-      }])
+      setExtraSubs(prev => [...prev, { _temp: true, product_id: parseInt(newExtraSub.product_id), product, morning_qty: parseFloat(newExtraSub.morning_qty)||0, evening_qty: parseFloat(newExtraSub.evening_qty)||0, rate: parseFloat(newExtraSub.rate) }])
     }
     setNewExtraSub({ product_id: '', morning_qty: '', evening_qty: '', rate: '' })
     setShowExtraForm(false)
@@ -218,13 +268,11 @@ export default function Customers() {
     }
   }
 
-  // When new extra sub product changes, auto-fill rate
   const handleExtraProductChange = (productId) => {
     const prod = products.find(p => p.id === parseInt(productId))
     setNewExtraSub(prev => ({ ...prev, product_id: productId, rate: prod?.default_rate || '' }))
   }
 
-  // When primary product changes, auto-fill rate
   const handlePrimaryProductChange = (productId) => {
     const prod = products.find(p => p.id === parseInt(productId))
     setForm(prev => ({ ...prev, product_id: productId, rate: prod?.default_rate || prev.rate }))
@@ -236,195 +284,244 @@ export default function Customers() {
     onChange: e => { setForm(p => ({ ...p, [k]: e.target.value })); setErrors(p => ({ ...p, [k]: '' })) }
   })
 
-  const primaryProduct = products.find(p => p.id === parseInt(form.product_id))
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="page-root">
       <Header
         title="ग्राहक"
         icon="👥"
-        subtitle={`${customers.filter(c => c.status === 'active').length} सक्रिय · ${customers.length} एकूण`}
+        subtitle={`${counts.active} सक्रिय · ${counts.all} एकूण`}
         rightContent={
           <button className="btn btn-primary btn-sm" onClick={openAdd}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             नवीन
           </button>
         }
       />
 
-      <div style={{ padding: '12px 16px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {/* Search */}
-        <div className="search-bar">
-          <svg className="search-bar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <TextInput placeholder="नाव किंवा मोबाईल शोधा..." value={search} onChange={e => setSearch(e.target.value)} />
+      {/* ── Filter bar ── */}
+      <div style={{ padding:'10px 16px 0', display:'flex', flexDirection:'column', gap:8 }}>
+
+        {/* Search + Filter button */}
+        <div style={{ display:'flex', gap:8 }}>
+          <div className="search-bar" style={{ flex:1 }}>
+            <svg className="search-bar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <TextInput placeholder="नाव किंवा मोबाईल शोधा..." value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <button
+            onClick={() => setModal('filters')}
+            style={{ flexShrink:0, width:42, height:42, borderRadius:12, border:`1.5px solid ${hasActiveFilters ? 'var(--accent)' : 'var(--border)'}`, background: hasActiveFilters ? 'rgba(16,185,129,0.12)' : 'var(--surface)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', position:'relative' }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={hasActiveFilters ? 'var(--accent)' : 'var(--text2)'} strokeWidth="2" strokeLinecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+            {hasActiveFilters && (
+              <div style={{ position:'absolute', top:4, right:4, width:8, height:8, borderRadius:'50%', background:'var(--accent)' }} />
+            )}
+          </button>
         </div>
 
-        {/* Summary strip */}
-        {customers.length > 0 && (
-          <div style={{ display: 'flex', gap: 8 }}>
-            {[
-              { label: 'सक्रिय',  count: customers.filter(c => c.status === 'active').length,  color: 'var(--green)',  bg: 'rgba(16,185,129,0.1)' },
-              { label: 'थांबले',  count: customers.filter(c => c.status === 'paused').length,  color: 'var(--yellow)', bg: 'rgba(234,179,8,0.1)'   },
-              { label: 'बंद',     count: customers.filter(c => c.status === 'stopped').length, color: 'var(--red)',    bg: 'rgba(239,68,68,0.1)'   },
-            ].map((s, i) => (
-              <div key={i} style={{ flex: 1, background: s.bg, border: `1px solid ${s.color}33`, borderRadius: 10, padding: '6px 8px', textAlign: 'center' }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: s.color }}>{s.count}</div>
-                <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 1 }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Area Filter chips */}
-        <div className="chip-row">
-          <button className={`chip${areaFilter === 'all' ? ' active' : ''}`} onClick={() => setAreaFilter('all')}>सर्व ({customers.length})</button>
-          {areas.map(a => {
-            const count = customers.filter(c => c.area_id === a.id).length
+        {/* Status filter chips — clickable to filter */}
+        <div style={{ display:'flex', gap:6, overflowX:'auto', paddingBottom:2 }}>
+          {[
+            { key:'all',     label:`सर्व`,     count:counts.all     },
+            { key:'active',  label:`सक्रिय`,   count:counts.active  },
+            { key:'paused',  label:`थांबले`,   count:counts.paused  },
+            { key:'stopped', label:`बंद`,       count:counts.stopped },
+          ].map(s => {
+            const isActive = statusFilter === s.key
+            const color    = s.key === 'all' ? 'var(--accent)' : STATUS_ACCENT[s.key]
+            const bg       = s.key === 'all' ? 'rgba(16,185,129,0.12)' : STATUS_BG[s.key]
             return (
-              <button key={a.id} className={`chip${areaFilter === String(a.id) ? ' active' : ''}`} onClick={() => setAreaFilter(String(a.id))}>
-                {a.name} ({count})
+              <button key={s.key} onClick={() => setStatusFilter(s.key)}
+                style={{ flexShrink:0, display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:20,
+                  border:`1.5px solid ${isActive ? color : 'var(--border)'}`,
+                  background: isActive ? bg : 'var(--surface)',
+                  cursor:'pointer', transition:'all 0.15s' }}>
+                <span style={{ fontSize:13, fontWeight:800, color: isActive ? color : 'var(--text)' }}>{s.count}</span>
+                <span style={{ fontSize:12, color: isActive ? color : 'var(--text2)', fontWeight: isActive ? 700 : 400 }}>{s.label}</span>
               </button>
             )
           })}
         </div>
+
+        {/* Today's delivery summary bar */}
+        {counts.active > 0 && (
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'9px 14px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ display:'flex', gap:14, alignItems:'center' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                <span style={{ fontSize:14 }}>✅</span>
+                <span style={{ fontSize:13, fontWeight:800, color:'var(--green)' }}>{todayDoneCount}</span>
+                <span style={{ fontSize:11, color:'var(--text2)' }}>दिले</span>
+              </div>
+              <div style={{ width:1, height:16, background:'var(--border)' }} />
+              <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                <span style={{ fontSize:14 }}>⏳</span>
+                <span style={{ fontSize:13, fontWeight:800, color: todayPendingCount > 0 ? 'var(--yellow)' : 'var(--green)' }}>{todayPendingCount}</span>
+                <span style={{ fontSize:11, color:'var(--text2)' }}>बाकी</span>
+              </div>
+              <div style={{ width:1, height:16, background:'var(--border)' }} />
+              <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                <span style={{ fontSize:14 }}>🥛</span>
+                <span style={{ fontSize:13, fontWeight:800, color:'var(--accent)' }}>{todayQty.toFixed(1)}L</span>
+              </div>
+            </div>
+            <span style={{ fontSize:10, color:'var(--text2)', background:'var(--surface2)', padding:'3px 8px', borderRadius:8 }}>आज</span>
+          </div>
+        )}
+
+        {/* Active filter tags (show what's applied) */}
+        {hasActiveFilters && (
+          <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
+            {areaFilter !== 'all' && (
+              <div style={{ display:'flex', alignItems:'center', gap:4, background:'rgba(16,185,129,0.12)', border:'1px solid rgba(16,185,129,0.3)', borderRadius:20, padding:'3px 10px', fontSize:11, color:'var(--accent)', fontWeight:600 }}>
+                📍 {areas.find(a => String(a.id) === areaFilter)?.name}
+                <button onClick={() => setAreaFilter('all')} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--accent)', padding:'0 0 0 4px', fontSize:13, lineHeight:1 }}>×</button>
+              </div>
+            )}
+            {sortBy !== 'name' && (
+              <div style={{ display:'flex', alignItems:'center', gap:4, background:'rgba(16,185,129,0.12)', border:'1px solid rgba(16,185,129,0.3)', borderRadius:20, padding:'3px 10px', fontSize:11, color:'var(--accent)', fontWeight:600 }}>
+                ↕ {SORT_OPTIONS.find(s => s.value === sortBy)?.label}
+                <button onClick={() => setSortBy('name')} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--accent)', padding:'0 0 0 4px', fontSize:13, lineHeight:1 }}>×</button>
+              </div>
+            )}
+            <button onClick={() => { setStatusFilter('all'); setAreaFilter('all'); setSortBy('name') }}
+              style={{ fontSize:11, color:'var(--red)', background:'none', border:'1px solid rgba(239,68,68,0.3)', borderRadius:20, padding:'3px 10px', cursor:'pointer' }}>
+              सर्व फिल्टर काढा
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Customer List */}
-      <div ref={custListRef} style={{ flex: 1, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {custRefreshIndicator}
+      {/* ── Customer List ── */}
+      <div ref={containerRef} style={{ flex:1, padding:'10px 16px', display:'flex', flexDirection:'column', gap:8 }}>
+        {refreshIndicator}
+
+        {/* Result count */}
+        {filtered.length > 0 && filtered.length !== customers.length && (
+          <div style={{ fontSize:11, color:'var(--text2)', fontWeight:600, paddingLeft:2 }}>
+            {filtered.length} ग्राहक सापडले
+          </div>
+        )}
+
         {filtered.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-            </div>
-            <div className="empty-state-title">ग्राहक नाही</div>
-            <div className="empty-state-sub">नवीन ग्राहक जोडण्यासाठी + बटण दाबा</div>
+          <div className="empty">
+            <div className="empty-icon">👥</div>
+            <div className="empty-title">{customers.length === 0 ? 'ग्राहक नाही' : 'कोणी सापडले नाही'}</div>
+            <div className="empty-desc">{customers.length === 0 ? 'नवीन ग्राहक जोडण्यासाठी + बटण दाबा' : 'शोध किंवा फिल्टर बदला'}</div>
           </div>
         ) : filtered.map(c => {
-          const areaName  = areas.find(a => a.id === c.area_id)?.name || ''
-          const prod      = products.find(p => p.id === c.product_id)
-          const prodColor = prod ? PRODUCT_TYPE_COLOR[prod.type] : 'var(--text2)'
-          const prodTint  = prod ? PRODUCT_TYPE_TINT[prod.type]  : 'var(--surface2)'
-          const delivered = todayDelivered[c.id]
+          const areaName   = areas.find(a => a.id === c.area_id)?.name || ''
+          const prod       = products.find(p => p.id === c.product_id)
+          const prodColor  = prod ? PRODUCT_TYPE_COLOR[prod.type] : 'var(--text2)'
+          const prodTint   = prod ? PRODUCT_TYPE_TINT[prod.type]  : 'var(--surface2)'
+          const delivered  = todayDelivered[c.id]
+          const due        = outstanding[c.id] || 0
+
           return (
-            <div
-              key={c.id}
-              style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 16,
-                overflow: 'hidden',
-                boxShadow: '0 2px 12px rgba(0,0,0,0.25)',
-                display: 'flex',
-              }}
-            >
-              {/* Left accent bar */}
-              <div style={{ width: 4, flexShrink: 0, background: prodColor, opacity: c.status === 'stopped' ? 0.25 : c.status === 'paused' ? 0.5 : 1 }} />
+            <div key={c.id} style={{ background:'var(--surface)', border:`1px solid ${due > 0 ? 'rgba(239,68,68,0.2)' : 'var(--border)'}`, borderRadius:16, overflow:'hidden', boxShadow:'0 2px 10px rgba(0,0,0,0.2)', display:'flex' }}>
 
-              <div style={{ flex: 1, minWidth: 0 }}>
-                {/* Main body — tappable to profile */}
-                <div
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px 11px', cursor: 'pointer' }}
-                  onClick={() => navigate(`/customers/${c.id}`)}
-                >
-                  {/* Avatar with color ring */}
-                  <div style={{ position: 'relative', flexShrink: 0 }}>
-                    <div style={{
-                      width: 48, height: 48, borderRadius: 14,
-                      background: prodTint,
-                      border: `2px solid ${prodColor}55`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 17, fontWeight: 800, color: prodColor,
-                      boxShadow: `0 0 0 3px ${prodColor}18`,
-                    }}>
-                      {getInitials(c.name)}
-                    </div>
-                    {/* Delivered dot indicator */}
-                    {delivered && (
-                      <div style={{
-                        position: 'absolute', bottom: -2, right: -2,
-                        width: 14, height: 14, borderRadius: '50%',
-                        background: 'var(--green)', border: '2px solid var(--surface)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 8, color: '#fff', fontWeight: 900,
-                      }}>✓</div>
-                    )}
-                  </div>
+              {/* Left color bar */}
+              <div style={{ width:4, flexShrink:0, background: c.status === 'stopped' ? 'var(--border)' : c.status === 'paused' ? 'var(--yellow)' : prodColor }} />
 
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {/* Name row */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
-                      <span className={`badge badge-${STATUS_COLORS[c.status]}`} style={{ flexShrink: 0 }}>{STATUS_LABELS[c.status]}</span>
+              <div style={{ flex:1, minWidth:0 }}>
+                {/* ── Card body (tappable) ── */}
+                <div style={{ padding:'12px 14px 10px', cursor:'pointer' }} onClick={() => navigate(`/customers/${c.id}`)}>
+
+                  {/* Row 1: Name + status badge + outstanding */}
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:5 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:7, flex:1, minWidth:0 }}>
+                      {/* Avatar */}
+                      <div style={{ position:'relative', flexShrink:0 }}>
+                        <div style={{ width:44, height:44, borderRadius:12, background:prodTint, border:`2px solid ${prodColor}44`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, fontWeight:800, color:prodColor }}>
+                          {getInitials(c.name)}
+                        </div>
+                        {delivered && (
+                          <div style={{ position:'absolute', bottom:-2, right:-2, width:14, height:14, borderRadius:'50%', background:'var(--green)', border:'2px solid var(--surface)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, color:'#fff', fontWeight:900 }}>✓</div>
+                        )}
+                      </div>
+
+                      <div style={{ minWidth:0 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:2 }}>
+                          <span style={{ fontSize:15, fontWeight:700, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.name}</span>
+                          <span className={`badge badge-${STATUS_COLORS[c.status]}`} style={{ flexShrink:0 }}>{STATUS_LABELS[c.status]}</span>
+                        </div>
+
+                        {/* Delivery info */}
+                        {prod && (
+                          <div style={{ display:'flex', alignItems:'center', gap:5, flexWrap:'wrap' }}>
+                            <span style={{ fontSize:12 }}>{prod.type === 'milk_buffalo' ? '🐃' : '🐄'}</span>
+                            <span style={{ fontSize:12, fontWeight:700, color:prodColor }}>{prod.name}</span>
+                            <span style={{ fontSize:10, color:'var(--border)' }}>·</span>
+                            <span style={{ fontSize:12, color:'var(--text2)' }}>☀️{c.morning_qty||0}{prod.unit}</span>
+                            <span style={{ fontSize:10, color:'var(--border)' }}>·</span>
+                            <span style={{ fontSize:12, color:'var(--text2)' }}>🌙{c.evening_qty||0}{prod.unit}</span>
+                            <span style={{ fontSize:10, color:'var(--border)' }}>·</span>
+                            <span style={{ fontSize:12, fontWeight:700, color:prodColor }}>₹{c.rate}/{prod.unit}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Delivery row */}
-                    {prod && (
-                      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 5, marginBottom: 3 }}>
-                        <span style={{ fontSize: 12 }}>{prod.type === 'milk_buffalo' ? '🐃' : '🐄'}</span>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: prodColor }}>{prod.name}</span>
-                        <span style={{ fontSize: 10, color: 'var(--border)' }}>│</span>
-                        <span style={{ fontSize: 12, color: 'var(--text2)' }}>☀️ {c.morning_qty || 0}{prod.unit}</span>
-                        <span style={{ fontSize: 10, color: 'var(--border)' }}>·</span>
-                        <span style={{ fontSize: 12, color: 'var(--text2)' }}>🌙 {c.evening_qty || 0}{prod.unit}</span>
-                        <span style={{ fontSize: 10, color: 'var(--border)' }}>│</span>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: prodColor }}>₹{c.rate}/{prod.unit}</span>
+                    {/* Outstanding badge */}
+                    {due > 0 && (
+                      <div style={{ flexShrink:0, textAlign:'right', marginLeft:8 }}>
+                        <div style={{ fontSize:14, fontWeight:900, color:'var(--red)' }}>{formatCurrency(due)}</div>
+                        <div style={{ fontSize:10, color:'var(--text2)' }}>थकबाकी</div>
                       </div>
                     )}
-
-                    {/* Contact row */}
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                      {areaName && <span style={{ fontSize: 11, color: 'var(--text2)' }}>📍 {areaName}</span>}
-                      {c.mobile  && <span style={{ fontSize: 11, color: 'var(--text2)' }}>📱 {c.mobile}</span>}
-                    </div>
+                    {due === 0 && c.status === 'active' && (
+                      <div style={{ flexShrink:0, marginLeft:8 }}>
+                        <span style={{ fontSize:11, fontWeight:700, color:'var(--green)', background:'rgba(16,185,129,0.1)', padding:'2px 8px', borderRadius:8 }}>✓ क्लिअर</span>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Chevron */}
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ color: 'var(--border)', flexShrink: 0 }}><polyline points="9 18 15 12 9 6"/></svg>
+                  {/* Row 2: Area + mobile */}
+                  <div style={{ display:'flex', gap:10, marginTop:4 }}>
+                    {areaName && <span style={{ fontSize:11, color:'var(--text2)' }}>📍 {areaName}</span>}
+                    {c.mobile  && <span style={{ fontSize:11, color:'var(--text2)' }}>📱 {c.mobile}</span>}
+                  </div>
                 </div>
 
-                {/* Bottom action strip */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '7px 12px 8px',
-                  borderTop: '1px solid var(--border)',
-                  background: 'rgba(0,0,0,0.15)',
-                }}>
+                {/* ── Action strip ── */}
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 10px 8px', borderTop:'1px solid var(--border)', background:'rgba(0,0,0,0.12)' }}>
+
                   {/* Quick deliver toggle */}
                   <button
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 5,
-                      border: `1.5px solid ${delivered ? 'var(--green)' : 'var(--border)'}`,
-                      borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                      background: delivered ? 'rgba(16,185,129,0.15)' : 'transparent',
-                      color: delivered ? 'var(--green)' : 'var(--text2)',
-                      transition: 'all 0.18s',
-                    }}
+                    style={{ display:'flex', alignItems:'center', gap:5, border:`1.5px solid ${delivered ? 'var(--green)' : 'var(--border)'}`, borderRadius:20, padding:'5px 14px', fontSize:12, fontWeight:700, cursor:'pointer', background: delivered ? 'rgba(16,185,129,0.15)' : 'transparent', color: delivered ? 'var(--green)' : 'var(--text2)', transition:'all 0.18s' }}
                     onClick={async (e) => {
                       e.stopPropagation()
                       const newStatus = delivered ? 'pending' : 'delivered'
-                      await upsertDelivery(c.id, c.product_id, todayStr(), 'morning', {
-                        qty: newStatus === 'delivered' ? (c.morning_qty || 0) : 0,
-                        status: newStatus, notes: ''
-                      })
+                      await upsertDelivery(c.id, c.product_id, todayStr(), 'morning', { qty: newStatus === 'delivered' ? (c.morning_qty || 0) : 0, status: newStatus, notes: '' })
                       setTodayDelivered(prev => ({ ...prev, [c.id]: newStatus === 'delivered' }))
+                      setTodayQty(prev => newStatus === 'delivered' ? prev + (c.morning_qty||0) : prev - (c.morning_qty||0))
                     }}
                   >
-                    <span style={{ fontSize: 13 }}>{delivered ? '✅' : '🥛'}</span>
+                    <span style={{ fontSize:14 }}>{delivered ? '✅' : '🥛'}</span>
                     {delivered ? 'दिले' : 'दे'}
                   </button>
 
-                  {/* Edit + Delete */}
-                  <div style={{ display: 'flex', gap: 2 }}>
+                  {/* WhatsApp (only if mobile + outstanding) */}
+                  <div style={{ display:'flex', gap:4 }}>
+                    {c.mobile && due > 0 && (
+                      <button
+                        title="WhatsApp थकबाकी आठवण"
+                        style={{ background:'none', border:'1px solid rgba(37,211,102,0.35)', borderRadius:10, padding:'5px 10px', cursor:'pointer', color:'#25d366', fontSize:12, fontWeight:600 }}
+                        onClick={e => {
+                          e.stopPropagation()
+                          const msg = `🙏 नमस्कार ${c.name} जी,\n\nआपल्या खात्यावर थकबाकी आहे:\n💰 थकबाकी: ${formatCurrency(due)}\n\nकृपया लवकरात लवकर पैसे जमा करावेत.\n\nधन्यवाद!`
+                          window.open(`https://wa.me/91${c.mobile}?text=${encodeURIComponent(msg)}`, '_blank')
+                        }}
+                      >💬</button>
+                    )}
                     <button
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px 10px', borderRadius: 10, color: 'var(--text2)', display: 'flex', alignItems: 'center' }}
-                      onClick={() => openEdit(c)}
+                      style={{ background:'none', border:'none', cursor:'pointer', padding:'5px 9px', borderRadius:10, color:'var(--text2)' }}
+                      onClick={e => { e.stopPropagation(); openEdit(c) }}
                     >
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     </button>
                     <button
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px 10px', borderRadius: 10, color: 'var(--red)', display: 'flex', alignItems: 'center' }}
-                      onClick={() => openDelete(c)}
+                      style={{ background:'none', border:'none', cursor:'pointer', padding:'5px 9px', borderRadius:10, color:'var(--red)' }}
+                      onClick={e => { e.stopPropagation(); openDelete(c) }}
                     >
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
                     </button>
@@ -436,195 +533,290 @@ export default function Customers() {
         })}
       </div>
 
-      {/* ── Add / Edit Modal ── */}
-      <Modal isOpen={modal === 'add' || modal === 'edit'} onClose={() => setModal(null)}
-        title={modal === 'add' ? 'नवीन ग्राहक' : 'ग्राहक माहिती बदला'}
+      {/* ══════════════════════ FILTER MODAL ══════════════════════ */}
+      <Modal isOpen={modal === 'filters'} onClose={() => setModal(null)} title="🔍 फिल्टर व क्रम"
         footer={
-          <>
-            <button className="btn btn-ghost" onClick={() => setModal(null)}>रद्द</button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? '...' : 'जतन करा'}</button>
-          </>
+          <div style={{ display:'flex', gap:8, width:'100%' }}>
+            <button className="btn btn-ghost" style={{ flex:1 }} onClick={() => { setStatusFilter('all'); setAreaFilter('all'); setSortBy('name') }}>
+              रीसेट करा
+            </button>
+            <button className="btn btn-primary" style={{ flex:2 }} onClick={() => setModal(null)}>
+              लागू करा
+            </button>
+          </div>
         }
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
-          {/* Name */}
-          <div className="form-group">
-            <label className="form-label">नाव *</label>
-            <TextInput className={`form-input${errors.name ? ' error' : ''}`} placeholder="ग्राहकाचे पूर्ण नाव" {...f('name')} />
-            {errors.name && <div className="form-error">{errors.name}</div>}
-          </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:16, padding:'4px 0' }}>
 
-          {/* Mobile */}
-          <div className="form-group">
-            <label className="form-label">मोबाईल</label>
-            <input className={`form-input${errors.mobile ? ' error' : ''}`} type="tel" inputMode="numeric" maxLength={10} placeholder="१० अंकी नंबर" {...f('mobile')} />
-            {errors.mobile && <div className="form-error">{errors.mobile}</div>}
-          </div>
-
-          {/* Address */}
-          <div className="form-group">
-            <label className="form-label">पत्ता</label>
-            <TextInput className="form-input" placeholder="घराचा पत्ता" {...f('address')} />
-          </div>
-
-          {/* Area */}
-          <div className="form-group">
-            <label className="form-label">भाग / क्षेत्र</label>
-            <BottomPicker
-              className="form-input"
-              options={[{ label:'भाग नाही', value:'' }, ...areas.map(a=>({ label:a.name, value:String(a.id) }))]}
-              value={form.area_id}
-              onChange={val=>{ setForm(p=>({...p,area_id:val})); setErrors(p=>({...p,area_id:''})) }}
-              placeholder="भाग निवडा"
-            />
-          </div>
-
-          {/* Primary Product — milk type */}
-          <div className="form-group">
-            <label className="form-label">दुधाचा प्रकार *</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {milkProducts.map(p => {
-                const isSelected = parseInt(form.product_id) === p.id
-                const color = PRODUCT_TYPE_COLOR[p.type]
-                const tint  = PRODUCT_TYPE_TINT[p.type]
+          {/* Status filter */}
+          <div>
+            <div style={{ fontSize:12, fontWeight:700, color:'var(--text2)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:8 }}>स्थिती</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              {[
+                { key:'all',     label:'सर्व',   count:counts.all,     color:'var(--accent)' },
+                { key:'active',  label:'सक्रिय', count:counts.active,  color:'var(--green)' },
+                { key:'paused',  label:'थांबले', count:counts.paused,  color:'var(--yellow)' },
+                { key:'stopped', label:'बंद',    count:counts.stopped, color:'var(--red)' },
+              ].map(s => {
+                const isSel = statusFilter === s.key
                 return (
-                  <button
-                    key={p.id} type="button"
-                    onClick={() => handlePrimaryProductChange(String(p.id))}
-                    style={{
-                      background: isSelected ? tint : 'var(--surface2)',
-                      border: `1.5px solid ${isSelected ? color : 'var(--border)'}`,
-                      borderRadius: 10, padding: '10px 12px', cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      color: isSelected ? color : 'var(--text2)',
-                      fontWeight: isSelected ? 700 : 500, fontSize: 14,
-                    }}
-                  >
-                    <span style={{ fontSize: 20 }}>{p.type === 'milk_buffalo' ? '🐃' : '🐄'}</span>
-                    {p.name}
+                  <button key={s.key} onClick={() => setStatusFilter(s.key)}
+                    style={{ padding:'10px 12px', borderRadius:12, border:`1.5px solid ${isSel ? s.color : 'var(--border)'}`, background: isSel ? `${s.color}1a` : 'var(--surface2)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    <span style={{ fontSize:13, fontWeight:700, color: isSel ? s.color : 'var(--text)' }}>{s.label}</span>
+                    <span style={{ fontSize:13, fontWeight:900, color: isSel ? s.color : 'var(--text2)' }}>{s.count}</span>
                   </button>
                 )
               })}
             </div>
-            {errors.product_id && <div className="form-error">{errors.product_id}</div>}
           </div>
 
-          {/* Qty + Rate */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-            <div className="form-group">
-              <label className="form-label">सकाळ ({primaryProduct?.unit || 'L'})</label>
-              <input className="form-input" type="number" step="0.5" min="0" placeholder="0" {...f('morning_qty')} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">संध्याकाळ ({primaryProduct?.unit || 'L'})</label>
-              <input className="form-input" type="number" step="0.5" min="0" placeholder="0" {...f('evening_qty')} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">दर (₹/{primaryProduct?.unit || 'L'}) *</label>
-              <input className={`form-input${errors.rate ? ' error' : ''}`} type="number" step="0.5" min="0" placeholder="62" {...f('rate')} />
-              {errors.rate && <div className="form-error">{errors.rate}</div>}
-            </div>
-          </div>
-
-          {/* Status + Start Date */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <div className="form-group">
-              <label className="form-label">स्थिती</label>
+          {/* Area filter */}
+          {areas.length > 0 && (
+            <div>
+              <div style={{ fontSize:12, fontWeight:700, color:'var(--text2)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:8 }}>भाग / क्षेत्र</div>
               <BottomPicker
                 className="form-input"
                 options={[
-                  { label:'सक्रिय', value:'active' },
-                  { label:'थांबले', value:'paused' },
-                  { label:'बंद', value:'stopped' },
+                  { label:`सर्व भाग (${customers.length})`, value:'all' },
+                  ...areas.map(a => ({ label:`${a.name} (${customers.filter(c => c.area_id === a.id).length})`, value:String(a.id) }))
                 ]}
-                value={form.status}
-                onChange={val=>{ setForm(p=>({...p,status:val})); setErrors(p=>({...p,status:''})) }}
+                value={areaFilter}
+                onChange={val => setAreaFilter(val)}
               />
             </div>
-            <div className="form-group">
-              <label className="form-label">सुरुवात तारीख</label>
-              <input className="form-input" type="date" {...f('start_date')} />
-            </div>
-          </div>
+          )}
 
-          {/* ── Extra Products Section ── */}
+          {/* Sort */}
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                अतिरिक्त उत्पादने
-              </div>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowExtraForm(p => !p)}>
-                + जोडा
-              </button>
+            <div style={{ fontSize:12, fontWeight:700, color:'var(--text2)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:8 }}>क्रम (Sort)</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {SORT_OPTIONS.map(s => {
+                const isSel = sortBy === s.value
+                return (
+                  <button key={s.value} onClick={() => setSortBy(s.value)}
+                    style={{ padding:'11px 14px', borderRadius:12, border:`1.5px solid ${isSel ? 'var(--accent)' : 'var(--border)'}`, background: isSel ? 'rgba(16,185,129,0.1)' : 'var(--surface2)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    <span style={{ fontSize:13, color: isSel ? 'var(--accent)' : 'var(--text)', fontWeight: isSel ? 700 : 400 }}>{s.label}</span>
+                    {isSel && <span style={{ fontSize:16, color:'var(--accent)' }}>✓</span>}
+                  </button>
+                )
+              })}
             </div>
-
-            {/* Existing extra subs */}
-            {extraSubs.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
-                {extraSubs.map((sub, i) => {
-                  const prod = sub.product || products.find(p => p.id === sub.product_id)
-                  return (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px' }}>
-                      <span style={{ fontSize: 16 }}>📦</span>
-                      <div style={{ flex: 1, fontSize: 13 }}>
-                        <span style={{ fontWeight: 700, color: 'var(--text)' }}>{prod?.name || '—'}</span>
-                        <span style={{ color: 'var(--text2)', marginLeft: 6 }}>
-                          सकाळ {sub.morning_qty}{prod?.unit} + सं. {sub.evening_qty}{prod?.unit} @ ₹{sub.rate}/{prod?.unit}
-                        </span>
-                      </div>
-                      <button type="button" className="btn-icon" style={{ color: 'var(--red)', width: 28, height: 28 }} onClick={() => handleRemoveExtraSub(sub)}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-
-            {/* Add extra product form */}
-            {showExtraForm && (
-              <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 12, border: '1px solid var(--border)' }}>
-                <div className="form-group" style={{ marginBottom: 8 }}>
-                  <label className="form-label">उत्पादन</label>
-                  <BottomPicker
-                    className="form-input"
-                    options={extraProducts.map(p => {
-                      const emoji = p.type === 'milk_buffalo' ? '🐃 ' : p.type === 'milk_cow' ? '🐄 ' : ''
-                      return { label:`${emoji}${p.name} (${p.unit})`, value:String(p.id) }
-                    })}
-                    value={newExtraSub.product_id}
-                    onChange={val=>handleExtraProductChange(val)}
-                    placeholder="उत्पादन निवडा"
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
-                  <div>
-                    <label className="form-label">सकाळ</label>
-                    <input className="form-input" type="number" step="0.5" min="0" placeholder="0"
-                      value={newExtraSub.morning_qty} onChange={e => setNewExtraSub(p => ({ ...p, morning_qty: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="form-label">संध्याकाळ</label>
-                    <input className="form-input" type="number" step="0.5" min="0" placeholder="0"
-                      value={newExtraSub.evening_qty} onChange={e => setNewExtraSub(p => ({ ...p, evening_qty: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="form-label">दर (₹)</label>
-                    <input className="form-input" type="number" step="1" min="0" placeholder="80"
-                      value={newExtraSub.rate} onChange={e => setNewExtraSub(p => ({ ...p, rate: e.target.value }))} />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" className="btn btn-primary btn-sm" onClick={handleAddExtraSub}>जोडा</button>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowExtraForm(false)}>रद्द</button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </Modal>
 
-      {/* ── Delete Confirm ── */}
+      {/* ══════════════════════ ADD / EDIT MODAL ══════════════════════ */}
+      <Modal
+        isOpen={modal === 'add' || modal === 'edit'}
+        onClose={() => setModal(null)}
+        title={modal === 'add' ? '👤 नवीन ग्राहक' : '✏️ ग्राहक माहिती बदला'}
+        footer={
+          <>
+            <button className="btn btn-ghost" onClick={() => setModal(null)}>रद्द</button>
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+              {saving ? <span className="spinner"/> : 'जतन करा'}
+            </button>
+          </>
+        }
+      >
+        <div style={{ display:'flex', flexDirection:'column', gap:0, padding:'4px 0' }}>
+
+          {/* Section tabs */}
+          <div style={{ display:'flex', gap:0, marginBottom:16, background:'var(--surface2)', borderRadius:10, padding:3 }}>
+            {[
+              { i:0, label:'ओळख' },
+              { i:1, label:'डिलिव्हरी' },
+              { i:2, label:'अतिरिक्त' },
+            ].map(s => (
+              <button key={s.i} onClick={() => setFormSection(s.i)}
+                style={{ flex:1, padding:'8px 6px', borderRadius:8, border:'none', cursor:'pointer', fontSize:12, fontWeight: formSection===s.i ? 700 : 500,
+                  background: formSection===s.i ? 'var(--surface)' : 'transparent',
+                  color: formSection===s.i ? 'var(--accent)' : 'var(--text2)',
+                  boxShadow: formSection===s.i ? '0 1px 4px rgba(0,0,0,0.2)' : 'none',
+                  transition:'all 0.15s' }}>
+                {s.label}
+                {s.i === 1 && errors.product_id ? ' ⚠️' : ''}
+                {s.i === 1 && errors.rate       ? ' ⚠️' : ''}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Section 0: ओळख ── */}
+          {formSection === 0 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              <div className="form-group">
+                <label className="form-label">नाव *</label>
+                <TextInput className={`form-input${errors.name?' error':''}`} placeholder="ग्राहकाचे पूर्ण नाव" {...f('name')} />
+                {errors.name && <div className="form-error">{errors.name}</div>}
+              </div>
+              <div className="form-group">
+                <label className="form-label">मोबाईल</label>
+                <input className={`form-input${errors.mobile?' error':''}`} type="tel" inputMode="numeric" maxLength={10} placeholder="१० अंकी नंबर" {...f('mobile')} />
+                {errors.mobile && <div className="form-error">{errors.mobile}</div>}
+              </div>
+              <div className="form-group">
+                <label className="form-label">पत्ता</label>
+                <TextInput className="form-input" placeholder="घराचा पत्ता" {...f('address')} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">भाग / क्षेत्र</label>
+                <BottomPicker className="form-input"
+                  options={[{ label:'भाग नाही', value:'' }, ...areas.map(a=>({ label:a.name, value:String(a.id) }))]}
+                  value={form.area_id}
+                  onChange={val=>{ setForm(p=>({...p,area_id:val})); setErrors(p=>({...p,area_id:''})) }}
+                  placeholder="भाग निवडा" />
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                <div className="form-group">
+                  <label className="form-label">स्थिती</label>
+                  <BottomPicker className="form-input"
+                    options={[{ label:'सक्रिय', value:'active' },{ label:'थांबले', value:'paused' },{ label:'बंद', value:'stopped' }]}
+                    value={form.status}
+                    onChange={val=>setForm(p=>({...p,status:val}))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">सुरुवात तारीख</label>
+                  <input className="form-input" type="date" {...f('start_date')} />
+                </div>
+              </div>
+              <button className="btn btn-primary" style={{ marginTop:4 }} onClick={() => setFormSection(1)}>
+                पुढे → डिलिव्हरी तपशील
+              </button>
+            </div>
+          )}
+
+          {/* ── Section 1: डिलिव्हरी ── */}
+          {formSection === 1 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              <div className="form-group">
+                <label className="form-label">दुधाचा प्रकार *</label>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                  {milkProducts.map(p => {
+                    const isSel  = parseInt(form.product_id) === p.id
+                    const color  = PRODUCT_TYPE_COLOR[p.type]
+                    const tint   = PRODUCT_TYPE_TINT[p.type]
+                    return (
+                      <button key={p.id} type="button" onClick={() => handlePrimaryProductChange(String(p.id))}
+                        style={{ background: isSel ? tint : 'var(--surface2)', border:`1.5px solid ${isSel ? color : 'var(--border)'}`, borderRadius:10, padding:'10px 12px', cursor:'pointer', display:'flex', alignItems:'center', gap:8, color: isSel ? color : 'var(--text2)', fontWeight: isSel ? 700 : 500, fontSize:14 }}>
+                        <span style={{ fontSize:20 }}>{p.type === 'milk_buffalo' ? '🐃' : '🐄'}</span>
+                        {p.name}
+                      </button>
+                    )
+                  })}
+                </div>
+                {errors.product_id && <div className="form-error">{errors.product_id}</div>}
+              </div>
+
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+                <div className="form-group">
+                  <label className="form-label">सकाळ ({primaryProduct?.unit||'L'})</label>
+                  <input className="form-input" type="number" step="0.5" min="0" placeholder="0" {...f('morning_qty')} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">संध्याकाळ ({primaryProduct?.unit||'L'})</label>
+                  <input className="form-input" type="number" step="0.5" min="0" placeholder="0" {...f('evening_qty')} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">दर (₹/{primaryProduct?.unit||'L'}) *</label>
+                  <input className={`form-input${errors.rate?' error':''}`} type="number" step="0.5" min="0" placeholder="62" {...f('rate')} />
+                  {errors.rate && <div className="form-error">{errors.rate}</div>}
+                </div>
+              </div>
+
+              {/* Quick summary */}
+              {form.morning_qty && form.evening_qty && form.rate && (
+                <div style={{ background:'rgba(16,185,129,0.08)', border:'1px solid rgba(16,185,129,0.2)', borderRadius:10, padding:'10px 14px', fontSize:12, color:'var(--text2)' }}>
+                  दैनिक अंदाज: <strong style={{ color:'var(--accent)' }}>
+                    {((parseFloat(form.morning_qty)||0) + (parseFloat(form.evening_qty)||0)).toFixed(1)}{primaryProduct?.unit||'L'} × ₹{form.rate}
+                    {' = '}₹{(((parseFloat(form.morning_qty)||0) + (parseFloat(form.evening_qty)||0)) * (parseFloat(form.rate)||0)).toFixed(0)}/दिवस
+                  </strong>
+                  <span style={{ marginLeft:8 }}>≈ ₹{(((parseFloat(form.morning_qty)||0) + (parseFloat(form.evening_qty)||0)) * (parseFloat(form.rate)||0) * 30).toFixed(0)}/महिना</span>
+                </div>
+              )}
+
+              <button className="btn btn-primary" style={{ marginTop:4 }} onClick={() => setFormSection(2)}>
+                पुढे → अतिरिक्त उत्पादने
+              </button>
+            </div>
+          )}
+
+          {/* ── Section 2: अतिरिक्त उत्पादने ── */}
+          {formSection === 2 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              <div style={{ background:'var(--surface2)', borderRadius:10, padding:'10px 12px', fontSize:12, color:'var(--text2)' }}>
+                💡 जर ग्राहक म्हैस + गाय दूध दोन्ही घेत असेल, किंवा दुसरे उत्पादन घेत असेल तर इथे जोडा.
+              </div>
+
+              {extraSubs.length > 0 && (
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  {extraSubs.map((sub, i) => {
+                    const prod = sub.product || products.find(p => p.id === sub.product_id)
+                    return (
+                      <div key={i} style={{ display:'flex', alignItems:'center', gap:8, background:'var(--surface2)', borderRadius:10, padding:'9px 12px' }}>
+                        <span style={{ fontSize:16 }}>📦</span>
+                        <div style={{ flex:1, fontSize:12 }}>
+                          <div style={{ fontWeight:700, color:'var(--text)' }}>{prod?.name || '—'}</div>
+                          <div style={{ color:'var(--text2)', marginTop:1 }}>☀️{sub.morning_qty}{prod?.unit} · 🌙{sub.evening_qty}{prod?.unit} · ₹{sub.rate}/{prod?.unit}</div>
+                        </div>
+                        <button type="button" onClick={() => handleRemoveExtraSub(sub)}
+                          style={{ background:'none', border:'none', cursor:'pointer', color:'var(--red)', padding:4 }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {!showExtraForm ? (
+                <button type="button" className="btn btn-ghost" onClick={() => setShowExtraForm(true)}>
+                  + अतिरिक्त उत्पादन जोडा
+                </button>
+              ) : (
+                <div style={{ background:'var(--surface2)', borderRadius:10, padding:12, border:'1px solid var(--border)', display:'flex', flexDirection:'column', gap:10 }}>
+                  <div className="form-group" style={{ marginBottom:0 }}>
+                    <label className="form-label">उत्पादन</label>
+                    <BottomPicker className="form-input"
+                      options={extraProducts.map(p => {
+                        const emoji = p.type==='milk_buffalo'?'🐃 ':p.type==='milk_cow'?'🐄 ':''
+                        return { label:`${emoji}${p.name} (${p.unit})`, value:String(p.id) }
+                      })}
+                      value={newExtraSub.product_id}
+                      onChange={val => handleExtraProductChange(val)}
+                      placeholder="उत्पादन निवडा" />
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+                    <div>
+                      <label className="form-label">सकाळ</label>
+                      <input className="form-input" type="number" step="0.5" min="0" placeholder="0" value={newExtraSub.morning_qty} onChange={e => setNewExtraSub(p=>({...p,morning_qty:e.target.value}))} />
+                    </div>
+                    <div>
+                      <label className="form-label">संध्याकाळ</label>
+                      <input className="form-input" type="number" step="0.5" min="0" placeholder="0" value={newExtraSub.evening_qty} onChange={e => setNewExtraSub(p=>({...p,evening_qty:e.target.value}))} />
+                    </div>
+                    <div>
+                      <label className="form-label">दर (₹)</label>
+                      <input className="form-input" type="number" step="1" min="0" placeholder="80" value={newExtraSub.rate} onChange={e => setNewExtraSub(p=>({...p,rate:e.target.value}))} />
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <button type="button" className="btn btn-primary btn-sm" onClick={handleAddExtraSub}>जोडा</button>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowExtraForm(false)}>रद्द</button>
+                  </div>
+                </div>
+              )}
+
+              {extraSubs.length === 0 && !showExtraForm && (
+                <div style={{ textAlign:'center', fontSize:12, color:'var(--text2)', padding:'8px 0' }}>
+                  अतिरिक्त उत्पादने नाहीत — ऐच्छिक
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* ══════════════════════ DELETE MODAL ══════════════════════ */}
       <Modal isOpen={modal === 'delete'} onClose={() => setModal(null)} title="ग्राहक हटवायचा का?"
         footer={
           <>
@@ -634,11 +826,11 @@ export default function Customers() {
         }
       >
         <p className="confirm-msg">
-          <strong style={{ color: 'var(--text)' }}>{selected?.name}</strong> हा ग्राहक आणि त्याची सर्व डिलिव्हरी नोंद कायमची हटेल.
+          <strong style={{ color:'var(--text)' }}>{selected?.name}</strong> हा ग्राहक आणि त्याची सर्व डिलिव्हरी नोंद कायमची हटेल.
         </p>
         {deleteBillCount > 0 && (
-          <div style={{ marginTop: 10, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '9px 12px', fontSize: 12, color: 'var(--red)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-            <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
+          <div style={{ marginTop:10, background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:10, padding:'9px 12px', fontSize:12, color:'var(--red)', display:'flex', gap:8 }}>
+            <span style={{ fontSize:16, flexShrink:0 }}>⚠️</span>
             <span>या ग्राहकाची <strong>{deleteBillCount} बिले</strong> आणि संबंधित पैसे जमा नोंदी पण हटतील.</span>
           </div>
         )}
