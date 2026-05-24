@@ -663,33 +663,46 @@ export default function Delivery() {
           const primaryStatus   = primaryDelivery?.status
           const areaName        = areas.find(a => a.id === c.area_id)?.name || ''
           const extraSubs       = custExtraSubs[c.id] || []
+          const activeExtraSubs = extraSubs.filter(sub => (session === 'morning' ? sub.morning_qty : sub.evening_qty) > 0)
 
-          // Card accent by status
-          const cardBorderLeft = primaryStatus === 'delivered' ? '3px solid #10b981'
-            : primaryStatus === 'partial' ? '3px solid #3b82f6'
-            : `1px solid var(--border)`
-          const cardBorder = primaryStatus === 'delivered' ? '1px solid rgba(16,185,129,0.3)'
-            : primaryStatus === 'partial' ? '1px solid rgba(59,130,246,0.3)'
+          // ── Avatar color by product type ──
+          const avatarColors = {
+            milk_buffalo: { bg: '#f59e0b', color: '#1c1400' },
+            milk_cow:     { bg: '#0ea5e9', color: '#fff'    },
+          }
+          const avCol = avatarColors[primaryProduct?.type] || { bg: 'var(--accent)', color: '#fff' }
+
+          // ── Avatar content by status ──
+          const avatarContent = primaryStatus === 'delivered'
+            ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+            : primaryStatus === 'partial'
+            ? <span style={{ fontSize: 18, fontWeight: 900 }}>≈</span>
+            : primaryStatus === 'skip'
+            ? <span style={{ fontSize: 20, fontWeight: 900 }}>—</span>
+            : <span style={{ fontSize: 17, fontWeight: 800 }}>{c.name.charAt(0).toUpperCase()}</span>
+
+          const avatarBg = primaryStatus === 'delivered' ? '#10b981'
+            : primaryStatus === 'partial' ? '#3b82f6'
+            : primaryStatus === 'skip' ? 'rgba(148,163,184,0.3)'
+            : avCol.bg
+
+          // ── Card wrapper style by status ──
+          const cardBg = primaryStatus === 'delivered' ? 'rgba(16,185,129,0.05)'
+            : primaryStatus === 'partial' ? 'rgba(59,130,246,0.05)'
+            : 'var(--surface)'
+          const cardBorder = primaryStatus === 'delivered' ? '1.5px solid rgba(16,185,129,0.4)'
+            : primaryStatus === 'partial' ? '1.5px solid rgba(59,130,246,0.35)'
             : '1px solid var(--border)'
 
-          // Big button appearance
-          const btnBg = primaryStatus === 'delivered' ? '#10b981'
+          // ── Right tap zone ──
+          const tapBg = primaryStatus === 'delivered' ? '#10b981'
             : primaryStatus === 'partial' ? '#3b82f6'
-            : primaryStatus === 'skip' ? 'var(--surface2)'
+            : primaryStatus === 'skip' ? 'rgba(148,163,184,0.15)'
             : 'transparent'
-          const btnColor = (primaryStatus === 'delivered' || primaryStatus === 'partial') ? '#fff'
-            : primaryStatus === 'skip' ? 'var(--text2)'
-            : 'var(--green)'
-          const btnBorder = primaryStatus === 'delivered' ? '#10b981'
-            : primaryStatus === 'partial' ? '#3b82f6'
-            : primaryStatus === 'skip' ? 'var(--border)'
-            : 'rgba(16,185,129,0.5)'
-          const btnLabel = primaryStatus === 'delivered'
-            ? `✓ दिले — ${Number(primaryDelivery?.qty || 0).toFixed(1)}${primaryProduct?.unit || 'L'}  ✏️`
-            : primaryStatus === 'partial'
-            ? `≈ कमी — ${Number(primaryDelivery?.qty || 0).toFixed(1)}${primaryProduct?.unit || 'L'}  ✏️`
-            : primaryStatus === 'skip' ? '⏭ सुट्टी — वगळले (पुन्हा टॅप करा)'
-            : `टॅप करा — दिले ✓  (${primaryQty}${primaryProduct?.unit || 'L'})`
+          const tapBorder = primaryStatus === 'delivered' ? 'none'
+            : primaryStatus === 'partial' ? 'none'
+            : primaryStatus === 'skip' ? '1px solid rgba(148,163,184,0.3)'
+            : '1.5px solid rgba(16,185,129,0.5)'
 
           const whatsappMsg = (() => {
             const delivQty  = primaryDelivery?.qty || primaryQty
@@ -699,153 +712,206 @@ export default function Delivery() {
             return `🥛 नमस्कार ${c.name} जी!\n\nआपले दूध पोहोचले ✓\n${sessLabel}: ${delivQty}${unit} ${prodName}\nदिनांक: ${date}\n\n— ${dairyName}`
           })()
 
-          return (
-            <div key={c.id} style={{
-              background: 'var(--surface)',
-              border: cardBorder,
-              borderLeft: cardBorderLeft,
-              borderRadius: 14,
-              overflow: 'hidden',
-              transition: 'border-color 0.2s',
-            }}>
+          // ── Helper: render one delivery row (primary + extra subs) ──
+          const renderDeliveryRow = ({ key, delivery, status, qty, product, customer: cust, isSub }) => {
+            const rowTapBg = status === 'delivered' ? '#10b981'
+              : status === 'partial' ? '#3b82f6'
+              : status === 'skip' ? 'rgba(148,163,184,0.15)'
+              : 'transparent'
+            const rowTapBorder = status === 'delivered' ? 'none'
+              : status === 'partial' ? 'none'
+              : status === 'skip' ? '1px solid rgba(148,163,184,0.3)'
+              : '1.5px solid rgba(6,182,212,0.5)'
+            const rowTapColor = (status === 'delivered' || status === 'partial') ? '#fff'
+              : status === 'skip' ? 'var(--text2)' : '#06b6d4'
 
-              {/* Customer header */}
-              <div style={{ padding: '10px 12px 8px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                <div onClick={() => navigate(`/customers/${c.id}`)} style={{ cursor: 'pointer', flex: 1 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{c.name}</div>
-                  {areaName && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>📍 {areaName}</div>}
+            return (
+              <div key={key} style={{
+                display: 'flex', alignItems: 'stretch',
+                borderTop: '1px solid var(--border)',
+                background: isSub ? 'rgba(6,182,212,0.03)' : 'transparent',
+              }}>
+                {/* Sub left info */}
+                <div style={{ flex: 1, padding: '8px 10px 8px 12px', display: 'flex', alignItems: 'center', gap: 8, opacity: status === 'skip' ? 0.5 : 1 }}>
+                  <span style={{ fontSize: 16 }}>{product?.type === 'milk_buffalo' ? '🐃' : product?.type === 'milk_cow' ? '🐄' : '📦'}</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{product?.name || 'दूध'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text2)' }}>
+                      {status === 'delivered' ? `✓ ${Number(delivery?.qty || 0).toFixed(1)}${product?.unit || 'L'} दिले` :
+                       status === 'partial'   ? `≈ ${Number(delivery?.qty || 0).toFixed(1)}${product?.unit || 'L'} दिले` :
+                       status === 'skip'      ? 'सुट्टी' :
+                       `${qty}${product?.unit || 'L'} द्यायचे`}
+                    </div>
+                  </div>
                 </div>
-                <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 8 }}>
-                  {primaryProduct && (
-                    <div style={{ fontSize: 12, fontWeight: 700, color: PRODUCT_TYPE_COLOR[primaryProduct.type] || 'var(--accent)' }}>
-                      {primaryProduct.type === 'milk_buffalo' ? '🐃' : '🐄'} {primaryProduct.name}
-                    </div>
-                  )}
-                  {primaryQty > 0 && (
-                    <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>
-                      {primaryQty}{primaryProduct?.unit || 'L'} / {session === 'morning' ? 'सकाळ' : 'संध्या'}
-                    </div>
-                  )}
+                {/* Sub tap zone */}
+                <button
+                  onClick={() => {
+                    if (status === 'skip') { clearDelivery(delivery?.id, key); return }
+                    if (!status) { markStatus(cust, product.id, 'delivered', qty); return }
+                    setEditQtyModal({ customer: cust, product })
+                    setEditQtyVal(String(delivery?.qty || qty))
+                  }}
+                  style={{
+                    width: 72, background: rowTapBg, border: 'none', borderLeft: rowTapBorder,
+                    cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    justifyContent: 'center', gap: 2, color: rowTapColor, fontWeight: 700,
+                    borderRadius: '0 0 0 0', transition: 'all 0.15s',
+                    flexShrink: 0,
+                  }}
+                >
+                  {status === 'delivered' ? <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span style={{ fontSize: 9 }}>दिले</span>
+                  </> : status === 'partial' ? <>
+                    <span style={{ fontSize: 16 }}>≈</span>
+                    <span style={{ fontSize: 9 }}>{Number(delivery?.qty || 0).toFixed(1)}L</span>
+                  </> : status === 'skip' ? <>
+                    <span style={{ fontSize: 16 }}>⏭</span>
+                    <span style={{ fontSize: 9 }}>सुट्टी</span>
+                  </> : <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span style={{ fontSize: 9 }}>दिले</span>
+                  </>}
+                </button>
+                {/* Sub secondary chips */}
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3, padding: '6px 6px 6px 0' }}>
+                  <button onClick={() => markStatus(cust, product.id, 'skip', qty)}
+                    style={{ padding: '3px 7px', borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: 'pointer', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)' }}>⏭</button>
+                  <button onClick={() => { setPartialModal({ customer: cust, product, defaultQty: qty }); setPartialQty(String(qty)) }}
+                    style={{ padding: '3px 7px', borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: 'pointer', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)' }}>≈</button>
                 </div>
               </div>
+            )
+          }
 
-              {/* Primary big action button */}
-              {primaryQty > 0 && (
-                <div style={{ padding: '0 10px 6px', display: 'flex', gap: 6 }}>
-                  <button
-                    onClick={() => {
-                      if (primaryStatus === 'skip') {
-                        clearDelivery(primaryDelivery?.id, primaryKey)
-                      } else if (!primaryStatus) {
-                        markStatus(c, c.product_id, 'delivered', primaryQty)
-                      } else {
-                        setEditQtyModal({ customer: c, product: primaryProduct })
-                        setEditQtyVal(String(primaryDelivery?.qty || primaryQty))
-                      }
-                    }}
-                    style={{
-                      flex: 1, height: 46, borderRadius: 10,
-                      background: btnBg, border: `1.5px solid ${btnBorder}`,
-                      color: btnColor, fontWeight: 700, fontSize: 13,
-                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    {btnLabel}
-                  </button>
-                  {/* WhatsApp — only when delivered + has mobile */}
+          return (
+            <div key={c.id} style={{
+              background: cardBg,
+              border: cardBorder,
+              borderRadius: 14,
+              overflow: 'hidden',
+              transition: 'background 0.2s, border-color 0.2s',
+            }}>
+
+              {/* ── Main row: avatar + info + tap zone ── */}
+              <div style={{ display: 'flex', alignItems: 'stretch', minHeight: 80 }}>
+
+                {/* Avatar */}
+                <div style={{ display: 'flex', alignItems: 'center', padding: '0 4px 0 12px', flexShrink: 0 }}>
+                  <div style={{
+                    width: 44, height: 44, borderRadius: '50%',
+                    background: avatarBg,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: (primaryStatus === 'delivered' || primaryStatus === 'partial') ? '#fff' : avCol.color,
+                    flexShrink: 0, transition: 'background 0.2s',
+                  }}>
+                    {avatarContent}
+                  </div>
+                </div>
+
+                {/* Info column — tappable to navigate */}
+                <div
+                  onClick={() => navigate(`/customers/${c.id}`)}
+                  style={{ flex: 1, padding: '10px 8px 10px 8px', cursor: 'pointer', minWidth: 0, opacity: primaryStatus === 'skip' ? 0.5 : 1 }}
+                >
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+                  {areaName && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>📍 {areaName}</div>}
+                  <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span>{primaryProduct?.type === 'milk_buffalo' ? '🐃' : '🐄'}</span>
+                    <span style={{ fontWeight: 600 }}>{primaryQty}{primaryProduct?.unit || 'L'}</span>
+                    {primaryStatus === 'delivered' && (
+                      <span style={{ color: '#10b981', fontWeight: 700, fontSize: 11 }}>· ✓ {Number(primaryDelivery?.qty || 0).toFixed(1)}L दिले</span>
+                    )}
+                    {primaryStatus === 'partial' && (
+                      <span style={{ color: '#3b82f6', fontWeight: 700, fontSize: 11 }}>· ≈ {Number(primaryDelivery?.qty || 0).toFixed(1)}L</span>
+                    )}
+                  </div>
+                  {/* WhatsApp — shown below name when delivered + has mobile */}
                   {primaryStatus === 'delivered' && c.mobile && (
                     <button
-                      onClick={() => window.open(`https://wa.me/91${c.mobile}?text=${encodeURIComponent(whatsappMsg)}`, '_blank')}
-                      style={{ width: 46, height: 46, borderRadius: 10, background: 'rgba(37,211,102,0.12)', border: '1px solid rgba(37,211,102,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}
-                    >💬</button>
+                      onClick={e => { e.stopPropagation(); window.open(`https://wa.me/91${c.mobile}?text=${encodeURIComponent(whatsappMsg)}`, '_blank') }}
+                      style={{ marginTop: 4, padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer', background: 'rgba(37,211,102,0.12)', border: '1px solid rgba(37,211,102,0.3)', color: '#25d366', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                    >💬 WhatsApp</button>
                   )}
                 </div>
-              )}
+
+                {/* Right tap zone — the PRIMARY action */}
+                <button
+                  onClick={() => {
+                    if (primaryStatus === 'skip') { clearDelivery(primaryDelivery?.id, primaryKey); return }
+                    if (!primaryStatus) { markStatus(c, c.product_id, 'delivered', primaryQty); return }
+                    setEditQtyModal({ customer: c, product: primaryProduct })
+                    setEditQtyVal(String(primaryDelivery?.qty || primaryQty))
+                  }}
+                  style={{
+                    width: 80, background: tapBg, border: 'none', borderLeft: tapBorder,
+                    cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    justifyContent: 'center', gap: 4, transition: 'all 0.2s', flexShrink: 0,
+                    borderRadius: '0 14px 14px 0',
+                  }}
+                >
+                  {primaryStatus === 'delivered' ? (
+                    <>
+                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: '#fff' }}>दिले</span>
+                      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.8)' }}>{Number(primaryDelivery?.qty || 0).toFixed(1)}L</span>
+                    </>
+                  ) : primaryStatus === 'partial' ? (
+                    <>
+                      <span style={{ fontSize: 22, fontWeight: 900, color: '#fff' }}>≈</span>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: '#fff' }}>{Number(primaryDelivery?.qty || 0).toFixed(1)}L</span>
+                      <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.8)' }}>दिले</span>
+                    </>
+                  ) : primaryStatus === 'skip' ? (
+                    <>
+                      <span style={{ fontSize: 22 }}>⏭</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text2)' }}>सुट्टी</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(16,185,129,0.9)" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: 'rgba(16,185,129,0.9)' }}>दिले</span>
+                      <span style={{ fontSize: 9, color: 'var(--text2)' }}>{primaryQty}L</span>
+                    </>
+                  )}
+                </button>
+              </div>
 
               {/* Extra subscription rows */}
-              {extraSubs.filter(sub => (session === 'morning' ? sub.morning_qty : sub.evening_qty) > 0).map(sub => {
+              {activeExtraSubs.map(sub => {
                 const prod        = getProductById(sub.product_id)
                 const subQty      = session === 'morning' ? sub.morning_qty : sub.evening_qty
                 const subKey      = `${c.id}_${sub.product_id}_${session}`
                 const subDelivery = deliveries[subKey]
                 const subStatus   = subDelivery?.status
-
-                const sBg = subStatus === 'delivered' ? '#10b981'
-                  : subStatus === 'partial' ? '#3b82f6'
-                  : subStatus === 'skip' ? 'var(--surface2)'
-                  : 'transparent'
-                const sColor = (subStatus === 'delivered' || subStatus === 'partial') ? '#fff'
-                  : subStatus === 'skip' ? 'var(--text2)' : '#06b6d4'
-                const sBorder = subStatus === 'delivered' ? '#10b981'
-                  : subStatus === 'partial' ? '#3b82f6'
-                  : subStatus === 'skip' ? 'var(--border)' : 'rgba(6,182,212,0.5)'
-                const sLabel = subStatus === 'delivered'
-                  ? `✓ ${prod?.name} — ${Number(subDelivery?.qty || 0).toFixed(1)}${prod?.unit || 'kg'}  ✏️`
-                  : subStatus === 'partial'
-                  ? `≈ ${prod?.name} — ${Number(subDelivery?.qty || 0).toFixed(1)}${prod?.unit || 'kg'}  ✏️`
-                  : subStatus === 'skip' ? `⏭ ${prod?.name} — सुट्टी`
-                  : `${prod?.type === 'milk_buffalo' ? '🐃' : prod?.type === 'milk_cow' ? '🐄' : '📦'} ${prod?.name} — ${subQty}${prod?.unit || 'kg'} दिले`
-
-                return (
-                  <div key={sub.id || sub.product_id} style={{ borderTop: '1px solid var(--border)', padding: '6px 10px 6px 16px', borderLeft: '3px solid rgba(6,182,212,0.3)' }}>
-                    <button
-                      onClick={() => {
-                        if (subStatus === 'skip') {
-                          clearDelivery(subDelivery?.id, subKey)
-                        } else if (!subStatus) {
-                          markStatus(c, sub.product_id, 'delivered', subQty)
-                        } else {
-                          setEditQtyModal({ customer: c, product: prod })
-                          setEditQtyVal(String(subDelivery?.qty || subQty))
-                        }
-                      }}
-                      style={{
-                        width: '100%', height: 38, borderRadius: 9,
-                        background: sBg, border: `1.5px solid ${sBorder}`,
-                        color: sColor, fontWeight: 700, fontSize: 12,
-                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        transition: 'all 0.15s ease', marginBottom: 5,
-                      }}
-                    >{sLabel}</button>
-                    <div style={{ display: 'flex', gap: 5 }}>
-                      <button onClick={() => markStatus(c, sub.product_id, 'skip', subQty)}
-                        style={{ padding: '4px 10px', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: subStatus === 'skip' ? 'rgba(148,163,184,0.2)' : 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)' }}>
-                        ⏭ सुट्टी
-                      </button>
-                      <button onClick={() => { setPartialModal({ customer: c, product: prod, defaultQty: subQty }); setPartialQty(String(subQty)) }}
-                        style={{ padding: '4px 10px', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: subStatus === 'partial' ? 'rgba(59,130,246,0.1)' : 'var(--surface2)', border: '1px solid var(--border)', color: subStatus === 'partial' ? '#3b82f6' : 'var(--text2)' }}>
-                        ≈ कमी
-                      </button>
-                    </div>
-                  </div>
-                )
+                return renderDeliveryRow({ key: subKey, delivery: subDelivery, status: subStatus, qty: subQty, product: prod, customer: c, isSub: true })
               })}
 
-              {/* Secondary action chips */}
-              <div style={{ display: 'flex', gap: 6, padding: '4px 10px 10px', flexWrap: 'wrap' }}>
+              {/* Secondary chips row */}
+              <div style={{ display: 'flex', gap: 5, padding: '6px 10px 8px', borderTop: '1px solid var(--border)', background: 'rgba(0,0,0,0.03)' }}>
                 <button
                   onClick={() => markStatus(c, c.product_id, 'skip', primaryQty)}
-                  style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                    background: primaryStatus === 'skip' ? 'rgba(148,163,184,0.15)' : 'var(--surface2)',
+                  style={{ padding: '5px 10px', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    background: primaryStatus === 'skip' ? 'rgba(148,163,184,0.2)' : 'var(--surface2)',
                     border: `1px solid ${primaryStatus === 'skip' ? 'rgba(148,163,184,0.5)' : 'var(--border)'}`,
                     color: primaryStatus === 'skip' ? 'var(--text)' : 'var(--text2)' }}
                 >⏭ सुट्टी</button>
                 <button
                   onClick={() => { setPartialModal({ customer: c, product: primaryProduct, defaultQty: primaryQty }); setPartialQty(String(primaryQty)) }}
-                  style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  style={{ padding: '5px 10px', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer',
                     background: primaryStatus === 'partial' ? 'rgba(59,130,246,0.1)' : 'var(--surface2)',
                     border: `1px solid ${primaryStatus === 'partial' ? 'rgba(59,130,246,0.4)' : 'var(--border)'}`,
                     color: primaryStatus === 'partial' ? '#3b82f6' : 'var(--text2)' }}
-                >≈ कमी दे</button>
+                >≈ कमी</button>
                 <button
                   onClick={() => setExtraModal({ customer: c })}
-                  style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)' }}
-                >📦 एक्स्ट्रा दूध</button>
+                  style={{ padding: '5px 10px', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)' }}
+                >📦 एक्स्ट्रा</button>
                 {primaryDelivery?.id && (
                   <button
                     onClick={() => setDeleteDeliveryId(primaryDelivery.id)}
-                    style={{ marginLeft: 'auto', padding: '6px 10px', borderRadius: 8, fontSize: 13, cursor: 'pointer', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--red)' }}
+                    style={{ marginLeft: 'auto', padding: '5px 8px', borderRadius: 7, fontSize: 13, cursor: 'pointer', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--red)' }}
                   >🗑️</button>
                 )}
               </div>
