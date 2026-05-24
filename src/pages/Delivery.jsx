@@ -524,6 +524,7 @@ export default function Delivery() {
       <Header
         title="डिलिव्हरी"
         icon="🥛"
+        subtitle={`${formatDateLabel(date)} · ${session === 'morning' ? '☀️ सकाळ' : '🌙 संध्याकाळ'}`}
         rightContent={
           <button className="btn btn-primary btn-sm" onClick={() => setQuickAddOpen(true)} style={{ gap: 5 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -661,7 +662,7 @@ export default function Delivery() {
       </div>
 
       {/* ── Customer list / grid ── */}
-      <div style={{ flex: 1, padding: '10px 16px', paddingBottom: 0 }}>
+      <div style={{ flex: 1, padding: '10px 16px', paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 80px)' }}>
         {loading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 32, color: 'var(--text2)' }}>
             <span className="spinner" /> लोड होत आहे...

@@ -391,13 +391,13 @@ export default function Customers() {
         )}
       </div>
 
-      {/* ── Customer List ── */}
-      <div ref={containerRef} style={{ flex:1, padding:'10px 16px', display:'flex', flexDirection:'column', gap:8 }}>
+      {/* ── Customer Grid ── */}
+      <div ref={containerRef} style={{ flex:1, padding:'10px 16px', paddingBottom:'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 80px)', overflowY:'auto' }}>
         {refreshIndicator}
 
         {/* Result count */}
         {filtered.length > 0 && filtered.length !== customers.length && (
-          <div style={{ fontSize:11, color:'var(--text2)', fontWeight:600, paddingLeft:2 }}>
+          <div style={{ fontSize:11, color:'var(--text2)', fontWeight:600, paddingBottom:8 }}>
             {filtered.length} ग्राहक सापडले
           </div>
         )}
@@ -408,129 +408,131 @@ export default function Customers() {
             <div className="empty-title">{customers.length === 0 ? 'ग्राहक नाही' : 'कोणी सापडले नाही'}</div>
             <div className="empty-desc">{customers.length === 0 ? 'नवीन ग्राहक जोडण्यासाठी + बटण दाबा' : 'शोध किंवा फिल्टर बदला'}</div>
           </div>
-        ) : filtered.map(c => {
-          const areaName   = areas.find(a => a.id === c.area_id)?.name || ''
-          const prod       = products.find(p => p.id === c.product_id)
-          const prodColor  = prod ? PRODUCT_TYPE_COLOR[prod.type] : 'var(--text2)'
-          const prodTint   = prod ? PRODUCT_TYPE_TINT[prod.type]  : 'var(--surface2)'
-          const delivered  = todayDelivered[c.id]
-          const due        = outstanding[c.id] || 0
+        ) : (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          {filtered.map(c => {
+            const areaName  = areas.find(a => a.id === c.area_id)?.name || ''
+            const prod      = products.find(p => p.id === c.product_id)
+            const prodColor = prod ? PRODUCT_TYPE_COLOR[prod.type] : 'var(--text2)'
+            const delivered = todayDelivered[c.id]
+            const due       = outstanding[c.id] || 0
 
-          return (
-            <div key={c.id} style={{ background:'var(--surface)', border:`1px solid ${due > 0 ? 'rgba(239,68,68,0.2)' : 'var(--border)'}`, borderRadius:16, overflow:'hidden', boxShadow:'0 2px 10px rgba(0,0,0,0.2)', display:'flex' }}>
+            // Avatar bg by status
+            const avBg = delivered ? '#10b981'
+              : c.status === 'stopped' ? '#475569'
+              : c.status === 'paused'  ? '#d97706'
+              : prod?.type === 'milk_buffalo' ? '#f59e0b'
+              : prod?.type === 'milk_cow'     ? '#0ea5e9'
+              : '#10b981'
+            const avFg = (prod?.type === 'milk_buffalo' && !delivered && c.status === 'active') ? '#1c1400' : '#fff'
 
-              {/* Left color bar */}
-              <div style={{ width:4, flexShrink:0, background: c.status === 'stopped' ? 'var(--border)' : c.status === 'paused' ? 'var(--yellow)' : prodColor }} />
+            // Strip color
+            const stripColor = c.status === 'stopped' ? '#475569'
+              : c.status === 'paused'  ? '#d97706'
+              : delivered ? '#10b981'
+              : prodColor
 
-              <div style={{ flex:1, minWidth:0 }}>
-                {/* ── Card body (tappable) ── */}
-                <div style={{ padding:'12px 14px 10px', cursor:'pointer' }} onClick={() => navigate(`/customers/${c.id}`)}>
+            // Card border/bg
+            const cardBorder = due > 0 ? '1.5px solid rgba(239,68,68,0.35)'
+              : delivered     ? '1.5px solid rgba(16,185,129,0.35)'
+              : '1px solid var(--border)'
+            const cardBg = due > 0   ? 'rgba(239,68,68,0.04)'
+              : delivered ? 'rgba(16,185,129,0.06)'
+              : 'var(--surface)'
 
-                  {/* Row 1: Name + status badge + outstanding */}
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:5 }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:7, flex:1, minWidth:0 }}>
-                      {/* Avatar */}
-                      <div style={{ position:'relative', flexShrink:0 }}>
-                        <div style={{ width:44, height:44, borderRadius:12, background:prodTint, border:`2px solid ${prodColor}44`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, fontWeight:800, color:prodColor }}>
-                          {getInitials(c.name)}
-                        </div>
-                        {delivered && (
-                          <div style={{ position:'absolute', bottom:-2, right:-2, width:14, height:14, borderRadius:'50%', background:'var(--green)', border:'2px solid var(--surface)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, color:'#fff', fontWeight:900 }}>✓</div>
-                        )}
-                      </div>
+            return (
+              <div key={c.id} style={{ position:'relative', background:cardBg, border:cardBorder, borderRadius:16, overflow:'hidden', display:'flex', flexDirection:'column', boxShadow:'0 2px 8px rgba(0,0,0,0.18)', transition:'all 0.2s' }}>
 
-                      <div style={{ minWidth:0 }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:2 }}>
-                          <span style={{ fontSize:15, fontWeight:700, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.name}</span>
-                          <span className={`badge badge-${STATUS_COLORS[c.status]}`} style={{ flexShrink:0 }}>{STATUS_LABELS[c.status]}</span>
-                        </div>
+                {/* Status strip */}
+                <div style={{ height:5, background:stripColor, flexShrink:0 }} />
 
-                        {/* Delivery info */}
-                        {prod && (
-                          <div style={{ display:'flex', alignItems:'center', gap:5, flexWrap:'wrap' }}>
-                            <span style={{ fontSize:12 }}>{prod.type === 'milk_buffalo' ? '🐃' : '🐄'}</span>
-                            <span style={{ fontSize:12, fontWeight:700, color:prodColor }}>{prod.name}</span>
-                            <span style={{ fontSize:10, color:'var(--border)' }}>·</span>
-                            <span style={{ fontSize:12, color:'var(--text2)' }}>☀️{c.morning_qty||0}{prod.unit}</span>
-                            <span style={{ fontSize:10, color:'var(--border)' }}>·</span>
-                            <span style={{ fontSize:12, color:'var(--text2)' }}>🌙{c.evening_qty||0}{prod.unit}</span>
-                            <span style={{ fontSize:10, color:'var(--border)' }}>·</span>
-                            <span style={{ fontSize:12, fontWeight:700, color:prodColor }}>₹{c.rate}/{prod.unit}</span>
-                          </div>
-                        )}
-                      </div>
+                {/* Delivered watermark */}
+                {delivered && (
+                  <svg style={{ position:'absolute', right:-8, top:12, opacity:0.06, pointerEvents:'none' }} width="90" height="90" viewBox="0 0 24 24" fill="#10b981"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+                )}
+                {due > 0 && (
+                  <svg style={{ position:'absolute', right:-6, top:10, opacity:0.05, pointerEvents:'none' }} width="86" height="86" viewBox="0 0 24 24" fill="#ef4444"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                )}
+
+                {/* Main tap → profile */}
+                <button
+                  onClick={() => navigate(`/customers/${c.id}`)}
+                  style={{ flex:1, background:'transparent', border:'none', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', padding:'10px 8px 6px', gap:3 }}
+                >
+                  {/* Avatar */}
+                  <div style={{ width:52, height:52, borderRadius:'50%', background:avBg, display:'flex', alignItems:'center', justifyContent:'center', color:avFg, fontSize:20, fontWeight:800, flexShrink:0, marginBottom:2, transition:'background 0.2s' }}>
+                    {delivered
+                      ? <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      : c.name.charAt(0).toUpperCase()}
+                  </div>
+
+                  {/* Name */}
+                  <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', textAlign:'center', lineHeight:1.25, maxWidth:'100%', overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{c.name}</div>
+
+                  {/* Area */}
+                  {areaName && <div style={{ fontSize:10, color:'var(--text2)', textAlign:'center' }}>📍 {areaName}</div>}
+
+                  {/* Product + qty */}
+                  {prod && (
+                    <div style={{ fontSize:11, fontWeight:700, color: delivered ? '#10b981' : prodColor, textAlign:'center', marginTop:1 }}>
+                      {prod.type === 'milk_buffalo' ? '🐃' : '🐄'} {c.morning_qty||0}+{c.evening_qty||0}{prod.unit}
                     </div>
+                  )}
 
-                    {/* Outstanding badge */}
-                    {due > 0 && (
-                      <div style={{ flexShrink:0, textAlign:'right', marginLeft:8 }}>
-                        <div style={{ fontSize:14, fontWeight:900, color:'var(--red)' }}>{formatCurrency(due)}</div>
-                        <div style={{ fontSize:10, color:'var(--text2)' }}>थकबाकी</div>
-                      </div>
-                    )}
-                    {due === 0 && c.status === 'active' && (
-                      <div style={{ flexShrink:0, marginLeft:8 }}>
-                        <span style={{ fontSize:11, fontWeight:700, color:'var(--green)', background:'rgba(16,185,129,0.1)', padding:'2px 8px', borderRadius:8 }}>✓ क्लिअर</span>
-                      </div>
-                    )}
-                  </div>
+                  {/* Outstanding badge */}
+                  {due > 0 && (
+                    <div style={{ fontSize:11, fontWeight:800, color:'#ef4444', background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.25)', borderRadius:8, padding:'1px 7px', marginTop:2 }}>
+                      ₹{due} थकबाकी
+                    </div>
+                  )}
+                </button>
 
-                  {/* Row 2: Area + mobile */}
-                  <div style={{ display:'flex', gap:10, marginTop:4 }}>
-                    {areaName && <span style={{ fontSize:11, color:'var(--text2)' }}>📍 {areaName}</span>}
-                    {c.mobile  && <span style={{ fontSize:11, color:'var(--text2)' }}>📱 {c.mobile}</span>}
-                  </div>
-                </div>
-
-                {/* ── Action strip ── */}
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 10px 8px', borderTop:'1px solid var(--border)', background:'rgba(0,0,0,0.12)' }}>
-
-                  {/* Quick deliver toggle */}
+                {/* Action row */}
+                <div style={{ display:'flex', borderTop:'1px solid var(--border)', flexShrink:0 }}>
+                  {/* Quick deliver */}
                   <button
-                    style={{ display:'flex', alignItems:'center', gap:5, border:`1.5px solid ${delivered ? 'var(--green)' : 'var(--border)'}`, borderRadius:20, padding:'5px 14px', fontSize:12, fontWeight:700, cursor:'pointer', background: delivered ? 'rgba(16,185,129,0.15)' : 'transparent', color: delivered ? 'var(--green)' : 'var(--text2)', transition:'all 0.18s' }}
-                    onClick={async (e) => {
+                    style={{ flex:1, height:36, background: delivered ? 'rgba(16,185,129,0.15)' : 'transparent', border:'none', borderRight:'1px solid var(--border)', cursor:'pointer', fontSize:12, fontWeight:700, color: delivered ? '#10b981' : 'var(--text2)', transition:'all 0.15s' }}
+                    onClick={async e => {
                       e.stopPropagation()
                       const newStatus = delivered ? 'pending' : 'delivered'
-                      await upsertDelivery(c.id, c.product_id, todayStr(), 'morning', { qty: newStatus === 'delivered' ? (c.morning_qty || 0) : 0, status: newStatus, notes: '' })
+                      await upsertDelivery(c.id, c.product_id, todayStr(), 'morning', { qty: newStatus === 'delivered' ? (c.morning_qty||0) : 0, status: newStatus, notes:'' })
                       setTodayDelivered(prev => ({ ...prev, [c.id]: newStatus === 'delivered' }))
                       setTodayQty(prev => newStatus === 'delivered' ? prev + (c.morning_qty||0) : prev - (c.morning_qty||0))
                     }}
+                  >{delivered ? '✓ दिले' : '🥛 दे'}</button>
+
+                  {/* Edit */}
+                  <button
+                    style={{ width:36, height:36, background:'transparent', border:'none', borderRight:'1px solid var(--border)', cursor:'pointer', color:'var(--text2)', display:'flex', alignItems:'center', justifyContent:'center' }}
+                    onClick={e => { e.stopPropagation(); openEdit(c) }}
                   >
-                    <span style={{ fontSize:14 }}>{delivered ? '✅' : '🥛'}</span>
-                    {delivered ? 'दिले' : 'दे'}
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   </button>
 
-                  {/* WhatsApp (only if mobile + outstanding) */}
-                  <div style={{ display:'flex', gap:4 }}>
-                    {c.mobile && due > 0 && (
-                      <button
-                        title="WhatsApp थकबाकी आठवण"
-                        style={{ background:'none', border:'1px solid rgba(37,211,102,0.35)', borderRadius:10, padding:'5px 10px', cursor:'pointer', color:'#25d366', fontSize:12, fontWeight:600 }}
-                        onClick={e => {
-                          e.stopPropagation()
-                          const msg = `🙏 नमस्कार ${c.name} जी,\n\nआपल्या खात्यावर थकबाकी आहे:\n💰 थकबाकी: ${formatCurrency(due)}\n\nकृपया लवकरात लवकर पैसे जमा करावेत.\n\nधन्यवाद!`
-                          window.open(`https://wa.me/91${c.mobile}?text=${encodeURIComponent(msg)}`, '_blank')
-                        }}
-                      >💬</button>
-                    )}
+                  {/* WhatsApp or Delete */}
+                  {c.mobile && due > 0 ? (
                     <button
-                      style={{ background:'none', border:'none', cursor:'pointer', padding:'5px 9px', borderRadius:10, color:'var(--text2)' }}
-                      onClick={e => { e.stopPropagation(); openEdit(c) }}
-                    >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                    </button>
+                      style={{ width:36, height:36, background:'transparent', border:'none', cursor:'pointer', color:'#25d366', display:'flex', alignItems:'center', justifyContent:'center', fontSize:15 }}
+                      onClick={e => {
+                        e.stopPropagation()
+                        const msg = `🙏 नमस्कार ${c.name} जी,\n\nआपल्या खात्यावर थकबाकी आहे:\n💰 थकबाकी: ${formatCurrency(due)}\n\nकृपया लवकरात लवकर पैसे जमा करावेत.\n\nधन्यवाद!`
+                        window.open(`https://wa.me/91${c.mobile}?text=${encodeURIComponent(msg)}`, '_blank')
+                      }}
+                    >💬</button>
+                  ) : (
                     <button
-                      style={{ background:'none', border:'none', cursor:'pointer', padding:'5px 9px', borderRadius:10, color:'var(--red)' }}
+                      style={{ width:36, height:36, background:'transparent', border:'none', cursor:'pointer', color:'var(--red)', display:'flex', alignItems:'center', justifyContent:'center' }}
                       onClick={e => { e.stopPropagation(); openDelete(c) }}
                     >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
                     </button>
-                  </div>
+                  )}
                 </div>
               </div>
-            </div>
-          )
-        })}
+            )
+          })}
+          </div>
+        )}
       </div>
 
       {/* ══════════════════════ FILTER MODAL ══════════════════════ */}
