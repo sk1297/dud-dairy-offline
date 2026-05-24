@@ -28,7 +28,11 @@ jobs:
       - name: Build web app
         run: npm run build
         env:
-          VITE_APP_KEY_HASH: ${{ secrets.VITE_APP_KEY_HASH }}
+          VITE_LK_P1: ${{ secrets.VITE_LK_P1 }}
+          VITE_LK_P2: ${{ secrets.VITE_LK_P2 }}
+          VITE_LK_P3: ${{ secrets.VITE_LK_P3 }}
+          VITE_LK_LEN: ${{ secrets.VITE_LK_LEN }}
+          VITE_LK_VH: ${{ secrets.VITE_LK_VH }}
 
       # ── 4. Java + Android SDK ───────────────────────────────────────────────
       - name: Setup Java 17

@@ -5,131 +5,224 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Dud Dairy — License Key Generator</title>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#0f172a;color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-  .card{background:#1e293b;border:1px solid #334155;border-radius:20px;padding:32px;width:100%;max-width:520px}
-  h1{font-size:20px;font-weight:900;margin-bottom:4px}
-  .sub{font-size:13px;color:#94a3b8;margin-bottom:28px}
-  label{display:block;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px}
-  input,textarea{width:100%;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:12px 14px;color:#f1f5f9;font-size:13px;font-family:monospace;outline:none;margin-bottom:18px;resize:none}
-  input:focus,textarea:focus{border-color:#10b981}
-  button.gen{width:100%;padding:14px;border-radius:10px;border:none;background:#10b981;color:#fff;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:24px}
-  button.gen:hover{background:#059669}
-  .section{background:#0f172a;border:1px solid #334155;border-radius:14px;padding:18px;margin-bottom:14px}
-  .section-title{font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
-  .row{display:flex;align-items:center;gap:10px}
-  .val{flex:1;font-size:15px;font-weight:800;color:#10b981;font-family:monospace;word-break:break-all;letter-spacing:.8px}
-  .val.hash{font-size:11px;color:#94a3b8;letter-spacing:.3px}
-  .copy{flex-shrink:0;width:36px;height:36px;border-radius:8px;border:1px solid #334155;background:#1e293b;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center}
-  .copy:hover{color:#10b981;border-color:#10b981}
-  .env-box{background:#0f172a;border:1px solid #334155;border-radius:10px;padding:14px;font-family:monospace;font-size:12px;color:#10b981;line-height:1.8;word-break:break-all}
-  .warn{margin-top:16px;font-size:12px;color:#f59e0b;line-height:1.6;padding:12px 14px;background:rgba(245,158,11,.08);border-radius:10px;border:1px solid rgba(245,158,11,.2)}
-  .logo{width:52px;height:52px;border-radius:16px;background:rgba(16,185,129,.15);border:2px solid rgba(16,185,129,.3);display:flex;align-items:center;justify-content:center;margin-bottom:16px;font-size:26px}
-  .divider{height:1px;background:#334155;margin:20px 0}
-  .step{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;font-size:13px;color:#94a3b8;line-height:1.5}
-  .step-num{width:22px;height:22px;border-radius:50%;background:#10b981;color:#fff;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f172a;color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:32px 16px}
+.wrap{width:100%;max-width:560px}
+.logo{width:56px;height:56px;border-radius:16px;background:rgba(16,185,129,.15);border:2px solid rgba(16,185,129,.3);display:flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:14px}
+h1{font-size:22px;font-weight:900;margin-bottom:4px}
+.sub{font-size:13px;color:#64748b;margin-bottom:28px}
+.card{background:#1e293b;border:1px solid #334155;border-radius:18px;padding:24px;margin-bottom:16px}
+.card-title{font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.7px;margin-bottom:16px}
+label{display:block;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;margin-top:14px}
+label:first-of-type{margin-top:0}
+input,select{width:100%;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:11px 14px;color:#f1f5f9;font-size:14px;font-family:inherit;outline:none}
+input:focus,select:focus{border-color:#10b981}
+input.mono{font-family:monospace;letter-spacing:.5px}
+.duration-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px}
+.dur-btn{background:#0f172a;border:1.5px solid #334155;border-radius:10px;padding:10px 0;font-size:13px;font-weight:700;color:#94a3b8;cursor:pointer;text-align:center;transition:all .15s}
+.dur-btn:hover{border-color:#10b981;color:#10b981}
+.dur-btn.active{background:rgba(16,185,129,.12);border-color:#10b981;color:#10b981}
+.gen-btn{width:100%;padding:15px;border-radius:12px;border:none;background:#10b981;color:#fff;font-size:16px;font-weight:800;cursor:pointer;margin-top:20px;transition:background .15s}
+.gen-btn:hover{background:#059669}
+.gen-btn:disabled{background:#1e3a2f;color:#4b7a67;cursor:not-allowed}
+.result{display:none}
+.out-card{background:#0f172a;border:1px solid #334155;border-radius:14px;padding:18px;margin-bottom:12px}
+.out-label{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.out-row{display:flex;align-items:center;gap:10px}
+.out-val{flex:1;font-size:18px;font-weight:900;color:#10b981;font-family:monospace;letter-spacing:1px;word-break:break-all}
+.out-val.small{font-size:11px;color:#64748b;letter-spacing:.3px;font-weight:400}
+.copy-btn{flex-shrink:0;width:38px;height:38px;border-radius:9px;border:1px solid #334155;background:#1e293b;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.copy-btn:hover{color:#10b981;border-color:#10b981}
+.expiry-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.25);border-radius:20px;padding:4px 12px;font-size:13px;font-weight:700;color:#10b981;margin-top:8px}
+.warn{background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:12px;padding:14px 16px;font-size:12px;color:#f59e0b;line-height:1.7;margin-top:4px}
+.warn strong{color:#fbbf24}
+.divider{height:1px;background:#334155;margin:20px 0}
+.step{display:flex;gap:10px;margin-bottom:10px;font-size:13px;color:#94a3b8;line-height:1.5}
+.step-n{width:22px;height:22px;border-radius:50%;background:#10b981;color:#fff;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.tag{font-size:11px;background:#334155;color:#94a3b8;border-radius:6px;padding:1px 7px;font-family:monospace}
+.secret-note{font-size:11px;color:#475569;margin-top:6px;line-height:1.5}
+.key-history{margin-top:8px}
+.hist-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #1e293b;font-size:12px}
+.hist-key{font-family:monospace;color:#10b981;font-weight:700}
+.hist-meta{color:#475569}
+#hist-count{font-size:11px;color:#475569;margin-bottom:8px}
 </style>
 </head>
 <body>
-<div class="card">
+<div class="wrap">
   <div class="logo">🥛</div>
   <h1>License Key Generator</h1>
-  <p class="sub">Dud Dairy — Owner Tool (keep this HTML file private)</p>
+  <p class="sub">Dud Dairy — Owner Tool · Keep this file private</p>
 
-  <!-- Optional: custom key -->
-  <label for="custom">Custom Key (optional — leave blank to auto-generate)</label>
-  <input id="custom" placeholder="e.g.  RAVI-DAIRY-2025  or leave empty" autocomplete="off"/>
+  <!-- Step 1: Master Secret -->
+  <div class="card">
+    <div class="card-title">🔐 Step 1 — Your Master Secret</div>
+    <label for="master">Master Secret (from your .env file or setup script)</label>
+    <input id="master" class="mono" type="password" placeholder="Enter your master secret..." autocomplete="off" spellcheck="false"/>
+    <p class="secret-note">⚠️ Never share this. This is the root secret used to sign all keys.<br>Get it by running: <span class="tag">node scripts/setup-master-key.mjs</span></p>
+  </div>
 
-  <button class="gen" onclick="generate()">
-    ⚡ Generate New License Key
-  </button>
+  <!-- Step 2: Client Info -->
+  <div class="card">
+    <div class="card-title">👤 Step 2 — Client Details</div>
+    <label for="client">Client Name (short, no spaces — appears in key)</label>
+    <input id="client" placeholder="e.g.  RAVI  or  NASHIK  or  SHARMA" maxlength="8" autocomplete="off" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')"/>
+
+    <label>Key Duration</label>
+    <div class="duration-grid">
+      <div class="dur-btn" onclick="setDur(1)">1 Day</div>
+      <div class="dur-btn" onclick="setDur(7)">7 Days</div>
+      <div class="dur-btn active" onclick="setDur(30)">30 Days</div>
+      <div class="dur-btn" onclick="setDur(90)">90 Days</div>
+      <div class="dur-btn" onclick="setDur(180)">180 Days</div>
+      <div class="dur-btn" onclick="setDur(365)">1 Year</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+      <label style="margin:0;white-space:nowrap">Custom days:</label>
+      <input id="custom-days" type="number" min="1" max="3650" placeholder="e.g. 45" style="max-width:120px" oninput="setDurCustom(this.value)"/>
+    </div>
+  </div>
+
+  <button class="gen-btn" onclick="generate()">⚡ Generate License Key</button>
 
   <!-- Result -->
-  <div id="result" style="display:none">
+  <div class="result" id="result">
+    <div class="divider"></div>
 
-    <div class="section">
-      <div class="section-title">🔑 License Key — share this with the user</div>
-      <div class="row">
-        <div class="val" id="keyval"></div>
-        <button class="copy" onclick="copy('keyval')" title="Copy key">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+    <div class="out-card">
+      <div class="out-label">🔑 License Key — Send this to client via WhatsApp/SMS</div>
+      <div class="out-row">
+        <div class="out-val" id="out-key"></div>
+        <button class="copy-btn" onclick="copyEl('out-key')" title="Copy key">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
         </button>
       </div>
-      <div style="font-size:11px;color:#64748b;margin-top:6px">Share via WhatsApp / SMS. No device ID needed.</div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">⚙️ .env line — paste into project before building APK</div>
-      <div class="env-box" id="envline"></div>
-      <button class="copy" style="margin-top:10px;width:auto;padding:0 14px;height:32px;font-size:12px;font-weight:700;color:#10b981;border-color:#10b981" onclick="copy('envline')">Copy .env line</button>
-      <div style="font-size:11px;color:#64748b;margin-top:8px">
-        File location: <code style="color:#94a3b8">dud-dairy-offline/.env</code>
+      <div class="expiry-badge">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        <span id="out-expiry-label"></span>
       </div>
     </div>
 
-    <div class="section">
-      <div class="section-title">SHA-256 Hash (stored in APK — key not exposed)</div>
-      <div class="row">
-        <div class="val hash" id="hashval"></div>
-        <button class="copy" onclick="copy('hashval')" title="Copy hash">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        </button>
+    <div class="out-card">
+      <div class="out-label">🛡️ Signature (stored inside key — proof it's genuine)</div>
+      <div class="out-row">
+        <div class="out-val small" id="out-sig"></div>
       </div>
-      <div style="font-size:11px;color:#64748b;margin-top:6px">Even if someone decompiles the APK, they see only this hash — the original key cannot be recovered from it.</div>
+      <div style="font-size:11px;color:#334155;margin-top:6px">Cannot be forged without your master secret. Even if client reverse-engineers the APK, they cannot generate new keys.</div>
     </div>
 
     <div class="warn">
-      ⚠️ <strong>Each APK build needs its own key.</strong><br/>
-      Build APK → generate key → share key with that client.<br/>
-      The key from one APK build will NOT work on a different build.<br/><br/>
-      Save this key securely — if you lose it, you'll need to rebuild the APK and re-share.
+      <strong>📋 Instructions:</strong><br>
+      1. Send the License Key to <strong id="out-client-name"></strong> via WhatsApp/SMS.<br>
+      2. Key expires on <strong id="out-expiry-full"></strong> — client must renew before then.<br>
+      3. After expiry, app shows "Key Expired" screen — client must contact you for a new key.<br><br>
+      <strong>⚠️ This key only works with APKs built using the same master secret.</strong>
     </div>
 
     <div class="divider"></div>
-    <div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">How to use</div>
-    <div class="step"><span class="step-num">1</span>Copy the <code>.env</code> line above → paste into <code>.env</code> file in the project root.</div>
-    <div class="step"><span class="step-num">2</span>Run <code>npm run build</code> then <code>npx cap sync android</code> to build the APK with this key baked in.</div>
-    <div class="step"><span class="step-num">3</span>Send the <strong>License Key</strong> (green text above) to the user via WhatsApp/SMS.</div>
-    <div class="step"><span class="step-num">4</span>User opens app → enters key → activated. Done.</div>
+    <div class="card-title" style="margin-bottom:8px">📋 Key History (this session)</div>
+    <div id="hist-count"></div>
+    <div class="key-history" id="key-history"></div>
   </div>
 </div>
 
 <script>
-async function sha256(text) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('')
+// ── XOR salt — MUST match LicenseGate.jsx ────────────────────────────────────
+const XOR_SALT = 'DudDairy_License_Obf_2025_v1_XZ9'
+
+let selectedDays = 30
+const history    = []
+
+function setDur(days) {
+  selectedDays = days
+  document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('active'))
+  event.target.classList.add('active')
+  document.getElementById('custom-days').value = ''
 }
 
-function randomKey() {
-  // Generates a human-friendly key like: DD-K9XP-M3QZ-2025
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'  // no confusable chars (0/O, 1/I)
-  const seg = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)))
-                      .map(b => chars[b % chars.length]).join('')
-  return `DD-${seg(4)}-${seg(4)}-${new Date().getFullYear()}`
+function setDurCustom(val) {
+  const n = parseInt(val)
+  if (n > 0) {
+    selectedDays = n
+    document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('active'))
+  }
+}
+
+async function hmacSHA256(secret, message) {
+  const enc = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw', enc.encode(secret),
+    { name:'HMAC', hash:'SHA-256' },
+    false, ['sign']
+  )
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message))
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2,'0')).join('')
+}
+
+function addDays(date, n) {
+  const d = new Date(date)
+  d.setDate(d.getDate() + n)
+  return d
+}
+
+function fmtDate(d) {
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+}
+
+function dateToStr(d) {
+  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`
 }
 
 async function generate() {
-  const custom = document.getElementById('custom').value.trim()
-  const key    = custom || randomKey()
-  const hash   = await sha256(key)
+  const master = document.getElementById('master').value.trim()
+  const client = document.getElementById('client').value.trim().toUpperCase()
 
-  document.getElementById('keyval').textContent  = key
-  document.getElementById('hashval').textContent = hash
-  document.getElementById('envline').textContent = `VITE_APP_KEY_HASH=${hash}`
-  document.getElementById('result').style.display = 'block'
-  document.getElementById('result').scrollIntoView({ behavior: 'smooth' })
+  if (!master) { alert('Please enter your master secret.'); return }
+  if (!client) { alert('Please enter a client name.'); return }
+  if (!selectedDays || selectedDays < 1) { alert('Select a valid duration.'); return }
+
+  const expDate    = addDays(new Date(), selectedDays)
+  const expStr     = dateToStr(expDate)        // YYYYMMDD
+  const payload    = `${client}|${expStr}`
+  const fullHmac   = await hmacSHA256(master, payload)
+  const sig        = fullHmac.slice(0, 8).toUpperCase()
+
+  // Key: DD-{CLIENT}-{EXPIRY}-{SIG8}
+  const key = `DD-${client}-${expStr}-${sig}`
+
+  // Display
+  document.getElementById('out-key').textContent         = key
+  document.getElementById('out-sig').textContent         = `HMAC-SHA256("${payload}") → ${fullHmac}`
+  document.getElementById('out-expiry-label').textContent = `Expires: ${fmtDate(expDate)} (${selectedDays} days)`
+  document.getElementById('out-expiry-full').textContent  = fmtDate(expDate)
+  document.getElementById('out-client-name').textContent  = client
+  document.getElementById('result').style.display         = 'block'
+  document.getElementById('result').scrollIntoView({ behavior:'smooth' })
+
+  // Add to history
+  history.unshift({ key, client, expiry: fmtDate(expDate), days: selectedDays, time: new Date().toLocaleTimeString() })
+  renderHistory()
 }
 
-function copy(id) {
-  const text = document.getElementById(id).textContent
+function renderHistory() {
+  const el = document.getElementById('key-history')
+  const ct = document.getElementById('hist-count')
+  ct.textContent = `${history.length} key(s) generated this session`
+  el.innerHTML = history.map(h => `
+    <div class="hist-row">
+      <span class="hist-key" onclick="copyText('${h.key}')" title="Click to copy" style="cursor:pointer">${h.key}</span>
+      <span class="hist-meta">${h.client} · ${h.days}d · exp ${h.expiry} · ${h.time}</span>
+    </div>
+  `).join('')
+}
+
+function copyEl(id) {
+  copyText(document.getElementById(id).textContent)
+}
+
+function copyText(text) {
   navigator.clipboard?.writeText(text)
-    .then(() => {
-      const el = document.getElementById(id)
-      const orig = el.style.color
-      el.style.color = '#10b981'
-      setTimeout(() => el.style.color = orig, 1000)
-    })
-    .catch(() => alert('Select and copy manually:\n\n' + text))
+    .catch(() => {})
 }
 </script>
 </body>
