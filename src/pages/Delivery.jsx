@@ -519,7 +519,7 @@ export default function Delivery() {
   }, 0)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)', paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 100px)' }}>
+    <div className="page-root">
 
       <Header
         title="डिलिव्हरी"
@@ -662,7 +662,7 @@ export default function Delivery() {
       </div>
 
       {/* ── Customer list / grid ── */}
-      <div style={{ flex: 1, padding: '10px 16px', paddingBottom: 'calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 80px)' }}>
+      <div style={{ flex: 1, padding: '10px 16px', paddingBottom: 40 }}>
         {loading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 32, color: 'var(--text2)' }}>
             <span className="spinner" /> लोड होत आहे...
