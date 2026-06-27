@@ -84,12 +84,14 @@ jobs:
           echo "APK_SIZE=$(du -sh apk-output/dud-dairy-debug.apk | cut -f1)" >> $GITHUB_ENV
           echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
           echo "BUILD_DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+          echo "BUILD_TIME=$(date +'%Y-%m-%d %H:%M')" >> $GITHUB_ENV
+          echo "BUILD_TAG=v$(date +'%Y%m%d-%H%M')-${GITHUB_SHA::7}" >> $GITHUB_ENV
 
       # ── 10. Upload as artifact (30 days download) ────────────────────────────
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dud-dairy-apk-${{ env.SHORT_SHA }}
+          name: dud-dairy-apk-${{ env.BUILD_TAG }}
           path: apk-output/dud-dairy-debug.apk
           retention-days: 30
 
@@ -97,13 +99,14 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ env.SHORT_SHA }}
-          name: "Dud Dairy — ${{ env.BUILD_DATE }} (debug)"
+          tag_name: ${{ env.BUILD_TAG }}
+          name: "Dud Dairy — ${{ env.BUILD_TIME }} (debug)"
           body: |
             ## 📱 Dud Dairy — Android Debug APK
 
-            **Build:** `${{ env.SHORT_SHA }}`
-            **Date:** ${{ env.BUILD_DATE }}
+            **Build:** `${{ env.BUILD_TAG }}`
+            **Commit:** `${{ env.SHORT_SHA }}`
+            **Date:** ${{ env.BUILD_TIME }}
             **Size:** ${{ env.APK_SIZE }}
 
             ### Install Instructions
