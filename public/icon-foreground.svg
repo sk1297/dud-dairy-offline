@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Transparent background — adaptive icon background color shows behind.
+       Cow is scaled to ~64% and centered to stay inside the circular safe zone. -->
+  <g transform="translate(256 256) scale(0.64) translate(-256 -262)">
+    <!-- Horns -->
+    <path d="M196 168 Q168 150 150 112 Q142 96 158 102 Q196 120 224 152 Z" fill="#f0fdf4" opacity="0.92"/>
+    <path d="M316 168 Q344 150 362 112 Q370 96 354 102 Q316 120 288 152 Z" fill="#f0fdf4" opacity="0.92"/>
+    <!-- Ears -->
+    <ellipse cx="0" cy="0" rx="50" ry="28" fill="#059669" transform="translate(150 244) rotate(-32)"/>
+    <ellipse cx="0" cy="0" rx="50" ry="28" fill="#059669" transform="translate(362 244) rotate(32)"/>
+    <!-- Head -->
+    <path d="M256 150
+             C322 150 360 196 360 268
+             C360 332 318 384 256 384
+             C194 384 152 332 152 268
+             C152 196 190 150 256 150 Z" fill="#10b981"/>
+    <!-- Forehead tuft -->
+    <path d="M236 158 Q256 138 276 158 Q266 172 256 172 Q246 172 236 158 Z" fill="#34d399"/>
+    <!-- Eyes -->
+    <ellipse cx="212" cy="250" rx="17" ry="19" fill="#0f172a"/>
+    <ellipse cx="300" cy="250" rx="17" ry="19" fill="#0f172a"/>
+    <circle cx="218" cy="244" r="5" fill="#f0fdf4" opacity="0.9"/>
+    <circle cx="306" cy="244" r="5" fill="#f0fdf4" opacity="0.9"/>
+    <!-- Muzzle -->
+    <ellipse cx="256" cy="332" rx="84" ry="56" fill="#f0fdf4" opacity="0.96"/>
+    <!-- Nostrils -->
+    <ellipse cx="230" cy="330" rx="11" ry="15" fill="#0f172a" opacity="0.75"/>
+    <ellipse cx="282" cy="330" rx="11" ry="15" fill="#0f172a" opacity="0.75"/>
+  </g>
+</svg>
