@@ -35,11 +35,11 @@ jobs:
           VITE_LK_VH: ${{ secrets.VITE_LK_VH }}
 
       # ── 4. Java + Android SDK ───────────────────────────────────────────────
-      - name: Setup Java 17
+      - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
