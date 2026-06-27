@@ -5,6 +5,9 @@ on:
     branches: [ master ]
   workflow_dispatch:   # allows manual trigger from GitHub Actions UI
 
+permissions:
+  contents: write   # needed to create the GitHub Release
+
 jobs:
   build:
     runs-on: ubuntu-latest
