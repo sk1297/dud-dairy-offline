@@ -11,6 +11,9 @@ import { getBillItems, generateBill, lockBill, unlockBill, deleteBill } from '..
 import { getCustomerPayments, addPayment, updatePayment, deletePayment } from '../services/paymentService.js'
 import { getCustomerProducts, PRODUCT_TYPE_COLOR, PRODUCT_TYPE_TINT } from '../services/productService.js'
 import { shareBillAsPDF } from '../utils/billPdf.js'
+import { getSetting } from '../services/settingsService.js'
+import { getCloudUser, provisionCustomerLogin } from '../sync/cloudAuth.js'
+import { getErrorMsg } from '../utils.js'
 
 const MONTH_NAMES_MR = ['जानेवारी','फेब्रुवारी','मार्च','एप्रिल','मे','जून','जुलै','ऑगस्ट','सप्टेंबर','ऑक्टोबर','नोव्हेंबर','डिसेंबर']
 const SESSION_LABEL  = { morning: '☀️ सकाळ', evening: '🌙 संध्या' }
@@ -340,6 +343,12 @@ export default function CustomerProfile() {
   const [deletePayId,   setDeletePayId]   = useState(null)
   const [genYear,   setGenYear]   = useState(now.getFullYear())
   const [genning,   setGenning]   = useState(false)
+
+  // Customer cloud login
+  const [loginModal,   setLoginModal]   = useState(false)
+  const [loginPass,    setLoginPass]    = useState('')
+  const [loginMobile,  setLoginMobile]  = useState('')
+  const [savingLogin,  setSavingLogin]  = useState(false)
   const [billPreview, setBillPreview] = useState(null) // full-screen in-app bill viewer HTML
 
   const load = useCallback(async () => {
@@ -509,6 +518,30 @@ export default function CustomerProfile() {
     return acc
   }, {})
 
+  // ── Open the "create customer login" modal (prefill mobile) ──
+  const openLoginModal = async () => {
+    const user = await getCloudUser()
+    if (!user) { show('प्रथम क्लाउड सिंकमध्ये साइन इन करा', 'error'); return }
+    if (!(await getSetting('cloud_dairy_id'))) { show('प्रथम एकदा क्लाउड सिंक करा', 'error'); return }
+    setLoginMobile(customer.mobile || '')
+    setLoginPass('')
+    setLoginModal(true)
+  }
+
+  const handleCreateLogin = async () => {
+    const mobile = loginMobile.replace(/\D/g, '')
+    if (mobile.length < 10) { show('वैध मोबाईल नंबर टाका', 'error'); return }
+    if (loginPass.length < 4) { show('पासवर्ड किमान ४ अक्षरे हवा', 'error'); return }
+    setSavingLogin(true)
+    try {
+      const dairyId = await getSetting('cloud_dairy_id')
+      await provisionCustomerLogin({ dairyId, localId: customer.id, mobile, password: loginPass })
+      show('ग्राहक लॉगिन तयार झाले ✅', 'success')
+      setLoginModal(false)
+    } catch (e) { show(getErrorMsg(e), 'error') }
+    finally { setSavingLogin(false) }
+  }
+
   if (loading) return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--bg)' }}>
       <div style={{ height: 56, background: 'var(--surface)', borderBottom: '1px solid var(--border)' }} />
@@ -574,6 +607,18 @@ export default function CustomerProfile() {
               ))}
             </div>
           )}
+
+          {/* Customer app login */}
+          <button
+            onClick={openLoginModal}
+            style={{ marginTop: 12, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              background: 'rgba(59,130,246,0.10)', border: '1px solid rgba(59,130,246,0.30)', color: '#3b82f6',
+              borderRadius: 10, padding: '9px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+            </svg>
+            ग्राहक अ‍ॅप लॉगिन तयार करा
+          </button>
         </div>
 
         {/* Stats + Actions — unified card */}
@@ -1039,6 +1084,36 @@ export default function CustomerProfile() {
           <div className="form-group">
             <label className="form-label">टीप (Optional)</label>
             <TextInput className="form-input" placeholder="नोट्स" value={payForm.notes} onChange={e => setPayForm(p => ({ ...p, notes: e.target.value }))} />
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Create Customer Login Modal ── */}
+      <Modal isOpen={loginModal} onClose={() => setLoginModal(false)} title="ग्राहक अ‍ॅप लॉगिन"
+        footer={
+          <>
+            <button className="btn btn-ghost" onClick={() => setLoginModal(false)}>रद्द</button>
+            <button className="btn btn-primary" onClick={handleCreateLogin} disabled={savingLogin}>
+              {savingLogin ? <span className="spinner" /> : 'लॉगिन तयार करा'}
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
+          <div style={{ fontSize: 12, color: 'var(--text2)', background: 'var(--surface2)', borderRadius: 8, padding: '8px 12px', lineHeight: 1.6 }}>
+            <strong style={{ color: 'var(--text)' }}>{customer.name}</strong> साठी ग्राहक अ‍ॅपचे लॉगिन तयार करा.
+            ग्राहक <strong style={{ color: 'var(--text)' }}>मोबाईल नंबर</strong> व हा पासवर्ड वापरून लॉगिन करेल.
+          </div>
+          <div className="form-group">
+            <label className="form-label">मोबाईल नंबर *</label>
+            <input className="form-input" type="tel" inputMode="numeric" placeholder="१० अंकी मोबाईल"
+              value={loginMobile} onChange={e => setLoginMobile(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">पासवर्ड *</label>
+            <input className="form-input" type="text" placeholder="किमान ४ अक्षरे"
+              value={loginPass} onChange={e => setLoginPass(e.target.value)} />
+            <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>हा पासवर्ड ग्राहकाला सांगा. पुन्हा तयार केल्यास पासवर्ड बदलेल.</div>
           </div>
         </div>
       </Modal>

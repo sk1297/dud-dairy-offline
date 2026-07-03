@@ -44,6 +44,19 @@ const moreItems = [
     )
   },
   {
+    label: 'क्लाउड सिंक',
+    sub: 'Cloud Sync',
+    color: '#3b82f6',
+    tint: 'rgba(59,130,246,0.12)',
+    path: '/more/cloud',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
+        <polyline points="9 15 12 12 15 15"/><line x1="12" y1="12" x2="12" y2="18"/>
+      </svg>
+    )
+  },
+  {
     label: 'बॅकअप',
     sub: 'Export & Backup',
     color: '#06b6d4',

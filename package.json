@@ -19,6 +19,7 @@
     "@capacitor/filesystem": "^8.1.2",
     "@capacitor/share": "^8.0.1",
     "@capacitor/status-bar": "^8.0.2",
+    "@supabase/supabase-js": "^2.110.0",
     "dexie": "^3.2.4",
     "html2canvas": "^1.4.1",
     "jeep-sqlite": "^2.8.0",

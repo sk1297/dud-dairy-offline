@@ -16,6 +16,7 @@ import Settings from './pages/Settings.jsx'
 import Backup from './pages/Backup.jsx'
 import CustomerProfile from './pages/CustomerProfile.jsx'
 import Help from './pages/Help.jsx'
+import CloudSync from './pages/CloudSync.jsx'
 import { Capacitor } from '@capacitor/core'
 
 function ProtectedRoute({ children }) {
@@ -86,6 +87,7 @@ function AppRoutes() {
                 <Route path="/more/settings"   element={<Settings />} />
                 <Route path="/more/backup"     element={<Backup />} />
                 <Route path="/more/help"       element={<Help />} />
+                <Route path="/more/cloud"      element={<CloudSync />} />
                 <Route path="/customers/:id"   element={<CustomerProfile />} />
                 <Route path="*"               element={<Navigate to="/" replace />} />
               </Routes>

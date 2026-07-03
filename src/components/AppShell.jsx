@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import BottomNav from './BottomNav.jsx'
+import { useAutoSync } from '../sync/useAutoSync.js'
 
 export default function AppShell({ children }) {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
+  useAutoSync()
 
   useEffect(() => {
     const handleOnline  = () => setIsOnline(true)
