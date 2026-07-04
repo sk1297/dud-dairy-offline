@@ -11,8 +11,10 @@ import { getBillItems, generateBill, lockBill, unlockBill, deleteBill } from '..
 import { getCustomerPayments, addPayment, updatePayment, deletePayment } from '../services/paymentService.js'
 import { getCustomerProducts, PRODUCT_TYPE_COLOR, PRODUCT_TYPE_TINT } from '../services/productService.js'
 import { shareBillAsPDF } from '../utils/billPdf.js'
+import QRCode from 'qrcode'
 import { getSetting } from '../services/settingsService.js'
 import { getCloudUser, provisionCustomerLogin } from '../sync/cloudAuth.js'
+import { buildInviteLink, buildWhatsAppLink } from '../sync/invite.js'
 import { getErrorMsg } from '../utils.js'
 
 const MONTH_NAMES_MR = ['जानेवारी','फेब्रुवारी','मार्च','एप्रिल','मे','जून','जुलै','ऑगस्ट','सप्टेंबर','ऑक्टोबर','नोव्हेंबर','डिसेंबर']
@@ -349,6 +351,8 @@ export default function CustomerProfile() {
   const [loginPass,    setLoginPass]    = useState('')
   const [loginMobile,  setLoginMobile]  = useState('')
   const [savingLogin,  setSavingLogin]  = useState(false)
+  const [share,        setShare]        = useState(null)   // { code, mobile, password, link }
+  const [qrUrl,        setQrUrl]        = useState('')
   const [billPreview, setBillPreview] = useState(null) // full-screen in-app bill viewer HTML
 
   const load = useCallback(async () => {
@@ -535,11 +539,28 @@ export default function CustomerProfile() {
     setSavingLogin(true)
     try {
       const dairyId = await getSetting('cloud_dairy_id')
-      await provisionCustomerLogin({ dairyId, localId: customer.id, mobile, password: loginPass })
+      const res = await provisionCustomerLogin({ dairyId, localId: customer.id, mobile, password: loginPass })
+      const code = res?.code || (await getSetting('cloud_dairy_code')) || ''
       show('ग्राहक लॉगिन तयार झाले ✅', 'success')
       setLoginModal(false)
+      // Open the share sheet with a one-tap invite link + QR.
+      const link = buildInviteLink({ code, mobile, password: loginPass })
+      setShare({ code, mobile, password: loginPass, link })
+      try { setQrUrl(await QRCode.toDataURL(link, { margin: 1, width: 240, color: { dark: '#0f172a', light: '#ffffff' } })) }
+      catch { setQrUrl('') }
     } catch (e) { show(getErrorMsg(e), 'error') }
     finally { setSavingLogin(false) }
+  }
+
+  const shareWhatsApp = () => {
+    if (!share) return
+    const url = buildWhatsAppLink({ name: customer?.name, code: share.code, mobile: share.mobile, password: share.password, dairyName })
+    window.open(url, '_blank')
+  }
+
+  const copyInvite = async () => {
+    try { await navigator.clipboard.writeText(share.link); show('लिंक कॉपी झाली', 'success') }
+    catch { show('कॉपी होऊ शकली नाही', 'error') }
   }
 
   if (loading) return (
@@ -1116,6 +1137,37 @@ export default function CustomerProfile() {
             <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>हा पासवर्ड ग्राहकाला सांगा. पुन्हा तयार केल्यास पासवर्ड बदलेल.</div>
           </div>
         </div>
+      </Modal>
+
+      {/* ── Share Invite Modal ── */}
+      <Modal isOpen={!!share} onClose={() => setShare(null)} title="ग्राहकाला आमंत्रण पाठवा"
+        footer={<button className="btn btn-ghost" onClick={() => setShare(null)}>बंद करा</button>}
+      >
+        {share && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '4px 0', alignItems: 'stretch' }}>
+            <div style={{ fontSize: 13, color: 'var(--text2)', textAlign: 'center', lineHeight: 1.6 }}>
+              <strong style={{ color: 'var(--text)' }}>{customer.name}</strong> ला ही लिंक पाठवा — एका टॅपमध्ये लॉगिन होईल.
+            </div>
+
+            {qrUrl && (
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <img src={qrUrl} alt="QR" style={{ width: 190, height: 190, borderRadius: 12, background: '#fff', padding: 8 }} />
+              </div>
+            )}
+
+            <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: 'var(--text2)', lineHeight: 1.9 }}>
+              डेअरी कोड: <strong style={{ color: 'var(--text)' }}>{share.code}</strong><br />
+              मोबाईल: <strong style={{ color: 'var(--text)' }}>{share.mobile}</strong><br />
+              पासवर्ड: <strong style={{ color: 'var(--text)' }}>{share.password}</strong>
+            </div>
+
+            <button className="btn btn-primary" style={{ width: '100%', background: '#25D366', borderColor: '#25D366' }} onClick={shareWhatsApp}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 00-8.6 15l-1.3 4.7 4.8-1.3A10 10 0 1012 2zm0 18a8 8 0 01-4.1-1.1l-.3-.2-2.8.8.8-2.8-.2-.3A8 8 0 1112 20zm4.4-6c-.2-.1-1.4-.7-1.6-.8s-.4-.1-.5.1-.6.8-.8 1-.3.2-.5.1a6.5 6.5 0 01-3.2-2.8c-.2-.4.2-.4.6-1.2.1-.2 0-.3 0-.5s-.5-1.3-.7-1.7-.4-.4-.5-.4h-.5a1 1 0 00-.7.3A3 3 0 006 9.2c0 1.8 1.3 3.5 1.5 3.7s2.6 4 6.3 5.5c2.3 1 2.6.7 3.1.6s1.4-.6 1.6-1.1.2-1 .1-1.1-.3-.2-.5-.3z"/></svg>
+              WhatsApp वर पाठवा
+            </button>
+            <button className="btn btn-ghost" style={{ width: '100%' }} onClick={copyInvite}>लिंक कॉपी करा</button>
+          </div>
+        )}
       </Modal>
 
       {/* ── Generate Bill Modal ── */}
