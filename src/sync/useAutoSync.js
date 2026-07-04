@@ -2,51 +2,57 @@ import { useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient.js'
 import { syncNow } from './syncService.js'
 import { getSetting } from '../services/settingsService.js'
+import { isDirty, clearDirty, markDirty } from './dirty.js'
 
-// ── Background auto-sync ───────────────────────────────────────────────────────
-// Silently pushes local data to the cloud when the owner is signed in and has
-// synced at least once (a cloud_dairy_id exists). Triggers:
-//   • on app start / this hook mounting
-//   • when the app returns to the foreground (visibility change)
-//   • every 3 hours while running
-// All failures are swallowed — sync is best-effort and never blocks the UI.
-const THREE_HOURS = 3 * 60 * 60 * 1000
-const MIN_GAP     = 2 * 60 * 1000   // don't sync more than once per 2 min
+// ── Smart background sync ──────────────────────────────────────────────────────
+// Pushes local data to the cloud whenever it has changed (dirty flag) so the
+// customer app sees updates within seconds — without wasteful uploads when
+// nothing changed. Triggers:
+//   • a short poll (every ~8s) that syncs only if dirty  → near "on-save"
+//   • when the app returns to the foreground / reconnects
+// Only runs when the owner is signed into cloud and has completed setup.
+const POLL_MS = 8000
+const MIN_GAP = 6000
 
 export function useAutoSync() {
   const lastRun = useRef(0)
+  const running = useRef(false)
 
   useEffect(() => {
     let timer
     let cancelled = false
 
-    const trySync = async () => {
-      if (cancelled) return
+    const trySync = async ({ force = false } = {}) => {
+      if (cancelled || running.current) return
+      if (!force && !isDirty()) return
       if (Date.now() - lastRun.current < MIN_GAP) return
+      if (!navigator.onLine) return
       try {
-        if (!navigator.onLine) return
         const { data: { session } } = await supabase.auth.getSession()
-        if (!session) return                       // owner not signed into cloud
-        if (!(await getSetting('cloud_dairy_id'))) return  // never set up yet
+        if (!session) return
+        if (!(await getSetting('cloud_dairy_id'))) return
+        running.current = true
         lastRun.current = Date.now()
+        clearDirty()                 // capture; new changes re-mark during sync
         await syncNow()
-      } catch { /* best-effort */ }
+      } catch {
+        markDirty()                  // failed → retry on next tick
+      } finally {
+        running.current = false
+      }
     }
 
-    // Initial + interval
-    trySync()
-    timer = setInterval(trySync, THREE_HOURS)
+    trySync({ force: true })                 // initial sync
+    timer = setInterval(() => trySync(), POLL_MS)
 
-    // Foreground
-    const onVisible = () => { if (document.visibilityState === 'visible') trySync() }
+    const onVisible = () => { if (document.visibilityState === 'visible') trySync({ force: true }) }
     document.addEventListener('visibilitychange', onVisible)
-    window.addEventListener('online', trySync)
+    window.addEventListener('online', () => trySync({ force: true }))
 
     return () => {
       cancelled = true
       clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
-      window.removeEventListener('online', trySync)
     }
   }, [])
 }

@@ -33,6 +33,15 @@ async function upsertAll(table, rows) {
   }
 }
 
+// Remove cloud rows that no longer exist locally (propagate deletions), so a
+// customer never sees data the owner has deleted.
+async function deleteMissing(table, dairy_id, localIds) {
+  let q = supabase.from(table).delete().eq('dairy_id', dairy_id)
+  if (localIds.length) q = q.not('local_id', 'in', `(${localIds.join(',')})`)
+  const { error } = await q
+  if (error) throw new Error(`${table} delete: ${error.message}`)
+}
+
 // Ensure a cloud `dairies` row exists for this owner and return its id.
 // Reuses the id cached in settings; otherwise finds/creates one owned by the
 // signed-in user and caches it.
@@ -137,6 +146,14 @@ export async function syncNow() {
   await upsertAll('monthly_bills',  cBills)
   await upsertAll('bill_items',     cBillItems)
   await upsertAll('payments',       cPayments)
+
+  // ── Reconcile deletions (remove cloud rows deleted locally) ──
+  await deleteMissing('products',      dairy_id, products.map(p => p.id))
+  await deleteMissing('customers',     dairy_id, customers.map(c => c.id))
+  await deleteMissing('deliveries',    dairy_id, deliveries.map(d => d.id))
+  await deleteMissing('monthly_bills', dairy_id, bills.map(b => b.id))
+  await deleteMissing('bill_items',    dairy_id, billItems.map(bi => bi.id))
+  await deleteMissing('payments',      dairy_id, payments.map(p => p.id))
 
   await setSetting(LAST_SYNC_KEY, now)
   return {

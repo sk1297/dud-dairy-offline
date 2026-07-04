@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core'
+import { markDirty } from '../sync/dirty.js'
 
 // ── Platform detection ────────────────────────────────────────────────────────
 const IS_NATIVE = Capacitor.getPlatform() !== 'web'
@@ -67,6 +68,7 @@ async function _initWeb() {
 // ── Public DB API ─────────────────────────────────────────────────────────────
 export const db = {
   async run(sql, params = []) {
+    markDirty()
     if (!IS_NATIVE) { webRun(sql, params); return }
     await _conn.run(sql, params, false)
   },
@@ -83,6 +85,7 @@ export const db = {
   },
 
   async insert(sql, params = []) {
+    markDirty()
     if (!IS_NATIVE) {
       webRun(sql, params)
       return _lastInsertId
