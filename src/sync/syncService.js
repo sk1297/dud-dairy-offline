@@ -17,6 +17,13 @@ const DAIRY_CODE_KEY = 'cloud_dairy_code'
 const LAST_SYNC_KEY  = 'cloud_last_sync'
 const BATCH = 500
 
+// All local tables included in the full-snapshot owner backup.
+const BACKUP_TABLES = [
+  'users', 'products', 'areas', 'settings', 'rate_history',
+  'customers', 'customer_products', 'deliveries', 'monthly_bills',
+  'bill_items', 'payments',
+]
+
 // Chunk an array into batches for upsert.
 function chunk(arr, n) {
   const out = []
@@ -111,6 +118,18 @@ export async function syncNow() {
   const areaName = id => areas.find(a => a.id === id)?.name || ''
   const now = new Date().toISOString()
 
+  // ── Safety guard ──
+  // Never let an empty phone wipe the cloud. If this device has no customers
+  // but a cloud backup with data exists (e.g. after a reinstall), skip the
+  // push entirely and signal that a restore is needed.
+  if (customers.length === 0) {
+    const { data: bk } = await supabase
+      .from('owner_backups').select('customer_count').maybeSingle()
+    if (bk && bk.customer_count > 0) {
+      return { skipped: 'restore_needed' }
+    }
+  }
+
   // ── Map local rows → cloud shape ──
   const cProducts = products.map(p => ({
     dairy_id, local_id: p.id, name: p.name, type: p.type, unit: p.unit,
@@ -163,6 +182,9 @@ export async function syncNow() {
   await deleteMissing('bill_items',    dairy_id, billItems.map(bi => bi.id))
   await deleteMissing('payments',      dairy_id, payments.map(p => p.id))
 
+  // ── Full-snapshot owner backup (so the owner can restore after reinstall) ──
+  await backupNow(dairy_id)
+
   await setSetting(LAST_SYNC_KEY, now)
   return {
     at: now,
@@ -176,4 +198,61 @@ export async function syncNow() {
 
 export async function getLastSync() {
   return getSetting(LAST_SYNC_KEY)
+}
+
+// ── Owner backup / restore ─────────────────────────────────────────────────────
+// Uploads a full JSON snapshot of every local table so the owner can recover
+// their entire dairy after uninstalling / changing phones.
+export async function backupNow(dairyId) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('प्रथम क्लाउडमध्ये साइन इन करा')
+  const dairy_id = dairyId || await getSetting(DAIRY_ID_KEY)
+
+  const snapshot = {}
+  for (const t of BACKUP_TABLES) {
+    try { snapshot[t] = await db.query(`SELECT * FROM ${t}`) } catch { snapshot[t] = [] }
+  }
+  const customer_count = snapshot.customers?.length || 0
+
+  const { error } = await supabase.from('owner_backups').upsert({
+    owner_auth_id: user.id, dairy_id, data: snapshot, customer_count,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'owner_auth_id' })
+  if (error) throw new Error(`backup: ${error.message}`)
+  return { customer_count }
+}
+
+// Info about the cloud backup (for UI): { customer_count, updated_at } or null.
+export async function getCloudBackupInfo() {
+  const { data } = await supabase
+    .from('owner_backups').select('customer_count, updated_at').maybeSingle()
+  return data || null
+}
+
+// True when this phone is empty but a cloud backup with data exists.
+export async function needsRestore() {
+  const local = await db.query('SELECT id FROM customers LIMIT 1')
+  if (local.length > 0) return false
+  const info = await getCloudBackupInfo()
+  return !!(info && info.customer_count > 0)
+}
+
+// Rebuild the local database from the cloud backup (overwrites local tables).
+export async function restoreFromCloud() {
+  const { data, error } = await supabase.from('owner_backups').select('data').maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data?.data) throw new Error('क्लाउडवर बॅकअप सापडला नाही')
+  const snap = data.data
+
+  for (const t of BACKUP_TABLES) {
+    const rows = snap[t] || []
+    await db.run(`DELETE FROM ${t}`)
+    for (const row of rows) {
+      const cols = Object.keys(row)
+      if (!cols.length) continue
+      const ph = cols.map(() => '?').join(',')
+      await db.run(`INSERT INTO ${t} (${cols.join(',')}) VALUES (${ph})`, cols.map(c => row[c]))
+    }
+  }
+  return { restored: true }
 }

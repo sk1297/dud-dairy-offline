@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header.jsx'
+import Modal from '../components/Modal.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import { getErrorMsg } from '../utils.js'
 import { cloudSignIn, cloudSignUp, cloudSignOut, getCloudUser } from '../sync/cloudAuth.js'
-import { syncNow, getLastSync, getDairyCode } from '../sync/syncService.js'
+import { syncNow, getLastSync, getDairyCode, getCloudBackupInfo, needsRestore, restoreFromCloud } from '../sync/syncService.js'
 
 // ── Cloud Sync (owner) ────────────────────────────────────────────────────────
 // Owner signs into Supabase and pushes local data to the cloud so their
@@ -21,13 +22,32 @@ export default function CloudSync() {
   const [busy, setBusy]         = useState(false)
   const [lastSync, setLastSync] = useState(null)
   const [dairyCode, setDairyCode] = useState(null)
+  const [backupInfo, setBackupInfo] = useState(null)
+  const [restoreReady, setRestoreReady] = useState(false)
+  const [restoring, setRestoring] = useState(false)
+  const [confirmRestore, setConfirmRestore] = useState(false)
 
   const refresh = useCallback(async () => {
-    setUser(await getCloudUser())
+    const u = await getCloudUser()
+    setUser(u)
     setLastSync(await getLastSync())
     setDairyCode(await getDairyCode())
+    if (u) {
+      try { setBackupInfo(await getCloudBackupInfo()) } catch { setBackupInfo(null) }
+      try { setRestoreReady(await needsRestore()) } catch { setRestoreReady(false) }
+    }
     setChecking(false)
   }, [])
+
+  const handleRestore = async () => {
+    setConfirmRestore(false)
+    setRestoring(true)
+    try {
+      await restoreFromCloud()
+      show('डेटा पुनर्संचयित झाला ✅', 'success')
+      setTimeout(() => window.location.reload(), 800)
+    } catch (e) { show(getErrorMsg(e), 'error'); setRestoring(false) }
+  }
 
   useEffect(() => { refresh() }, [refresh])
 
@@ -111,12 +131,48 @@ export default function CloudSync() {
           </div>
         ) : (
           <>
+            {/* Restore prompt — this phone is empty but cloud has a backup */}
+            {restoreReady && (
+              <div style={{ ...card, borderColor: 'rgba(245,158,11,0.5)', background: 'rgba(245,158,11,0.10)' }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#f59e0b', marginBottom: 4 }}>☁️ बॅकअप सापडला!</div>
+                <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 14, lineHeight: 1.7 }}>
+                  या फोनवर डेटा नाही, पण क्लाउडवर तुमचा बॅकअप आहे
+                  {backupInfo?.customer_count ? ` (${backupInfo.customer_count} ग्राहक)` : ''}.
+                  खालील बटण दाबून तुमचा सर्व डेटा परत आणा.
+                </div>
+                <button className="btn btn-primary" style={{ width: '100%', background: '#f59e0b', borderColor: '#f59e0b' }}
+                  disabled={restoring} onClick={() => setConfirmRestore(true)}>
+                  {restoring ? 'पुनर्संचयित होत आहे…' : '⬇️ माझा डेटा परत आणा'}
+                </button>
+              </div>
+            )}
+
             <div style={card}>
               <div style={{ fontSize: 12, color: 'var(--text2)' }}>साइन इन:</div>
               <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{user.email}</div>
               <div style={{ fontSize: 12, color: 'var(--text2)' }}>
                 शेवटचे सिंक: {lastSync ? new Date(lastSync).toLocaleString('en-IN') : 'अजून नाही'}
               </div>
+            </div>
+
+            {/* Backup status */}
+            <div style={{ ...card, borderColor: 'rgba(16,185,129,0.35)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 16 }}>{backupInfo ? '✅' : '☁️'}</span>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>
+                  {backupInfo ? 'तुमचा डेटा क्लाउडवर सुरक्षित आहे' : 'बॅकअप अजून नाही'}
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.7 }}>
+                {backupInfo
+                  ? `शेवटचा बॅकअप: ${new Date(backupInfo.updated_at).toLocaleString('en-IN')} · ${backupInfo.customer_count} ग्राहक. फोन बदलल्यास/पुन्हा install केल्यास डेटा परत मिळेल.`
+                  : 'एकदा सिंक केल्यावर तुमचा सर्व डेटा आपोआप क्लाउडवर बॅकअप होईल.'}
+              </div>
+              {backupInfo && !restoreReady && (
+                <button className="btn btn-ghost" style={{ width: '100%', marginTop: 12, fontSize: 13 }} disabled={restoring} onClick={() => setConfirmRestore(true)}>
+                  ⬇️ क्लाउडवरून डेटा पुनर्संचयित करा
+                </button>
+              )}
             </div>
 
             {dairyCode && (
@@ -145,6 +201,20 @@ export default function CloudSync() {
           </>
         )}
       </div>
+
+      <Modal isOpen={confirmRestore} onClose={() => setConfirmRestore(false)} title="डेटा पुनर्संचयित करायचा?"
+        footer={
+          <>
+            <button className="btn btn-ghost" onClick={() => setConfirmRestore(false)}>रद्द</button>
+            <button className="btn btn-primary" onClick={handleRestore}>होय, परत आणा</button>
+          </>
+        }
+      >
+        <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.8, padding: '4px 0' }}>
+          क्लाउडवरील बॅकअपमधून सर्व डेटा या फोनवर परत आणला जाईल. या फोनवरचा सध्याचा डेटा त्याने बदलला जाईल.
+          {backupInfo?.customer_count ? ` (बॅकअपमध्ये ${backupInfo.customer_count} ग्राहक आहेत.)` : ''}
+        </div>
+      </Modal>
     </div>
   )
 }
