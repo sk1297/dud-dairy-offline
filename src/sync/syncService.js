@@ -13,6 +13,7 @@ import { supabase } from './supabaseClient.js'
 import { getSetting, setSetting } from '../services/settingsService.js'
 
 const DAIRY_ID_KEY   = 'cloud_dairy_id'
+const DAIRY_CODE_KEY = 'cloud_dairy_code'
 const LAST_SYNC_KEY  = 'cloud_last_sync'
 const BATCH = 500
 
@@ -65,24 +66,31 @@ export async function ensureDairy() {
   }
 
   if (dairyId) {
-    await supabase.from('dairies').update(profile).eq('id', dairyId)
+    const { data } = await supabase.from('dairies').update(profile).eq('id', dairyId).select('code').single()
+    if (data?.code) await setSetting(DAIRY_CODE_KEY, data.code)
     return dairyId
   }
 
   // Look for an existing dairy owned by this user, else create one.
   const { data: existing } = await supabase
-    .from('dairies').select('id').eq('owner_auth_id', user.id).limit(1)
+    .from('dairies').select('id, code').eq('owner_auth_id', user.id).limit(1)
   if (existing && existing.length) {
     dairyId = existing[0].id
     await supabase.from('dairies').update(profile).eq('id', dairyId)
+    if (existing[0].code) await setSetting(DAIRY_CODE_KEY, existing[0].code)
   } else {
     const { data, error } = await supabase
-      .from('dairies').insert(profile).select('id').single()
+      .from('dairies').insert(profile).select('id, code').single()
     if (error) throw new Error(`dairy: ${error.message}`)
     dairyId = data.id
+    if (data.code) await setSetting(DAIRY_CODE_KEY, data.code)
   }
   await setSetting(DAIRY_ID_KEY, dairyId)
   return dairyId
+}
+
+export async function getDairyCode() {
+  return getSetting(DAIRY_CODE_KEY)
 }
 
 // Push all tables. Returns a summary { counts, at }.

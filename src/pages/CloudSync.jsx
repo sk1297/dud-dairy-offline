@@ -4,7 +4,7 @@ import Header from '../components/Header.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import { getErrorMsg } from '../utils.js'
 import { cloudSignIn, cloudSignUp, cloudSignOut, getCloudUser } from '../sync/cloudAuth.js'
-import { syncNow, getLastSync } from '../sync/syncService.js'
+import { syncNow, getLastSync, getDairyCode } from '../sync/syncService.js'
 
 // ── Cloud Sync (owner) ────────────────────────────────────────────────────────
 // Owner signs into Supabase and pushes local data to the cloud so their
@@ -20,10 +20,12 @@ export default function CloudSync() {
   const [setupCode, setSetupCode] = useState('')
   const [busy, setBusy]         = useState(false)
   const [lastSync, setLastSync] = useState(null)
+  const [dairyCode, setDairyCode] = useState(null)
 
   const refresh = useCallback(async () => {
     setUser(await getCloudUser())
     setLastSync(await getLastSync())
+    setDairyCode(await getDairyCode())
     setChecking(false)
   }, [])
 
@@ -53,6 +55,7 @@ export default function CloudSync() {
       const c = res.counts
       show(`सिंक झाले • ग्राहक ${c.customers}, डिलिव्हरी ${c.deliveries}, बिल ${c.bills}`, 'success')
       setLastSync(res.at)
+      setDairyCode(await getDairyCode())
     } catch (e) { show(getErrorMsg(e), 'error') }
     finally { setBusy(false) }
   }
@@ -115,6 +118,16 @@ export default function CloudSync() {
                 शेवटचे सिंक: {lastSync ? new Date(lastSync).toLocaleString('en-IN') : 'अजून नाही'}
               </div>
             </div>
+
+            {dairyCode && (
+              <div style={{ ...card, borderColor: 'rgba(59,130,246,0.4)', background: 'rgba(59,130,246,0.08)' }}>
+                <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 6 }}>तुमचा डेअरी कोड (ग्राहकांना सांगा):</div>
+                <div style={{ fontSize: 28, fontWeight: 900, letterSpacing: 3, color: '#3b82f6', fontFamily: 'monospace' }}>{dairyCode}</div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 6, lineHeight: 1.6 }}>
+                  ग्राहक अ‍ॅपमध्ये लॉगिनसाठी ग्राहकाला हा कोड + त्यांचा मोबाईल + पासवर्ड लागेल.
+                </div>
+              </div>
+            )}
 
             <div style={card}>
               <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>डेटा क्लाउडवर पाठवा</div>
