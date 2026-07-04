@@ -14,7 +14,7 @@ import { shareBillAsPDF } from '../utils/billPdf.js'
 import QRCode from 'qrcode'
 import { getSetting } from '../services/settingsService.js'
 import { getCloudUser, provisionCustomerLogin } from '../sync/cloudAuth.js'
-import { buildInviteLink, buildWhatsAppLink } from '../sync/invite.js'
+import { buildWhatsAppLink, CUSTOMER_APK_URL } from '../sync/invite.js'
 import { getErrorMsg } from '../utils.js'
 
 const MONTH_NAMES_MR = ['जानेवारी','फेब्रुवारी','मार्च','एप्रिल','मे','जून','जुलै','ऑगस्ट','सप्टेंबर','ऑक्टोबर','नोव्हेंबर','डिसेंबर']
@@ -543,10 +543,9 @@ export default function CustomerProfile() {
       const code = res?.code || (await getSetting('cloud_dairy_code')) || ''
       show('ग्राहक लॉगिन तयार झाले ✅', 'success')
       setLoginModal(false)
-      // Open the share sheet with a one-tap invite link + QR.
-      const link = buildInviteLink({ code, mobile, password: loginPass })
-      setShare({ code, mobile, password: loginPass, link })
-      try { setQrUrl(await QRCode.toDataURL(link, { margin: 1, width: 240, color: { dark: '#0f172a', light: '#ffffff' } })) }
+      // Open the share sheet: APK download QR + credentials + WhatsApp.
+      setShare({ code, mobile, password: loginPass })
+      try { setQrUrl(await QRCode.toDataURL(CUSTOMER_APK_URL, { margin: 1, width: 240, color: { dark: '#0f172a', light: '#ffffff' } })) }
       catch { setQrUrl('') }
     } catch (e) { show(getErrorMsg(e), 'error') }
     finally { setSavingLogin(false) }
@@ -559,7 +558,7 @@ export default function CustomerProfile() {
   }
 
   const copyInvite = async () => {
-    try { await navigator.clipboard.writeText(share.link); show('लिंक कॉपी झाली', 'success') }
+    try { await navigator.clipboard.writeText(CUSTOMER_APK_URL); show('अ‍ॅप लिंक कॉपी झाली', 'success') }
     catch { show('कॉपी होऊ शकली नाही', 'error') }
   }
 
@@ -1146,12 +1145,13 @@ export default function CustomerProfile() {
         {share && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '4px 0', alignItems: 'stretch' }}>
             <div style={{ fontSize: 13, color: 'var(--text2)', textAlign: 'center', lineHeight: 1.6 }}>
-              <strong style={{ color: 'var(--text)' }}>{customer.name}</strong> ला ही लिंक पाठवा — एका टॅपमध्ये लॉगिन होईल.
+              <strong style={{ color: 'var(--text)' }}>{customer.name}</strong> ला अ‍ॅप व ही लॉगिन माहिती पाठवा.
             </div>
 
             {qrUrl && (
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <img src={qrUrl} alt="QR" style={{ width: 190, height: 190, borderRadius: 12, background: '#fff', padding: 8 }} />
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <img src={qrUrl} alt="QR" style={{ width: 180, height: 180, borderRadius: 12, background: '#fff', padding: 8 }} />
+                <div style={{ fontSize: 11, color: 'var(--text2)' }}>📲 अ‍ॅप डाउनलोडसाठी QR स्कॅन करा</div>
               </div>
             )}
 
@@ -1165,7 +1165,7 @@ export default function CustomerProfile() {
               <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 00-8.6 15l-1.3 4.7 4.8-1.3A10 10 0 1012 2zm0 18a8 8 0 01-4.1-1.1l-.3-.2-2.8.8.8-2.8-.2-.3A8 8 0 1112 20zm4.4-6c-.2-.1-1.4-.7-1.6-.8s-.4-.1-.5.1-.6.8-.8 1-.3.2-.5.1a6.5 6.5 0 01-3.2-2.8c-.2-.4.2-.4.6-1.2.1-.2 0-.3 0-.5s-.5-1.3-.7-1.7-.4-.4-.5-.4h-.5a1 1 0 00-.7.3A3 3 0 006 9.2c0 1.8 1.3 3.5 1.5 3.7s2.6 4 6.3 5.5c2.3 1 2.6.7 3.1.6s1.4-.6 1.6-1.1.2-1 .1-1.1-.3-.2-.5-.3z"/></svg>
               WhatsApp वर पाठवा
             </button>
-            <button className="btn btn-ghost" style={{ width: '100%' }} onClick={copyInvite}>लिंक कॉपी करा</button>
+            <button className="btn btn-ghost" style={{ width: '100%' }} onClick={copyInvite}>अ‍ॅप लिंक कॉपी करा</button>
           </div>
         )}
       </Modal>

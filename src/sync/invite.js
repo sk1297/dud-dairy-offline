@@ -1,26 +1,25 @@
-// ── Customer invite links ─────────────────────────────────────────────────────
-// Builds a magic link to the hosted customer web app that pre-fills the dairy
-// code + mobile + password so the customer is auto-logged-in with one tap.
-export const CUSTOMER_WEB_URL = 'https://sk1297.github.io/dud-dairy-customer'
+// ── Customer invite (APK) ─────────────────────────────────────────────────────
+// Customers install the Android app and log in with their credentials — no web
+// browser is exposed. The owner shares the APK download link + login details.
 
-// base64 that safely handles Unicode passwords
-const b64 = (s) => btoa(unescape(encodeURIComponent(String(s))))
-
-export function buildInviteLink({ code, mobile, password }) {
-  const p = password ? `&p=${b64(password)}` : ''
-  return `${CUSTOMER_WEB_URL}/#/login?c=${encodeURIComponent(code)}&m=${encodeURIComponent(mobile)}${p}`
-}
+// Stable "latest APK" direct-download link from GitHub Releases.
+export const CUSTOMER_APK_URL =
+  'https://github.com/sk1297/dud-dairy-customer/releases/latest/download/dud-dairy-customer-debug.apk'
 
 export function buildInviteMessage({ name, code, mobile, password, dairyName }) {
-  const link = buildInviteLink({ code, mobile, password })
   return [
     `नमस्कार${name ? ' ' + name : ''} 🙏`,
-    `${dairyName || 'दूध डेअरी'} — तुमचे ग्राहक खाते तयार आहे.`,
+    `${dairyName || 'दूध डेअरी'} — तुमचे ग्राहक अ‍ॅप खाते तयार आहे.`,
     ``,
-    `👉 इथे टॅप करून तुमचे दूध, बिल व पेमेंट पहा:`,
-    link,
+    `📲 अ‍ॅप डाउनलोड करा:`,
+    CUSTOMER_APK_URL,
     ``,
-    `(डेअरी कोड: ${code} · मोबाईल: ${mobile})`,
+    `🔑 लॉगिन माहिती:`,
+    `डेअरी कोड: ${code}`,
+    `मोबाईल: ${mobile}`,
+    `पासवर्ड: ${password}`,
+    ``,
+    `अ‍ॅप उघडून वरील माहितीने लॉगिन करा. एकदाच लॉगिन करावे लागेल.`,
   ].join('\n')
 }
 
