@@ -24,6 +24,14 @@ const PAYMENT_MODES  = { cash: 'रोख', upi: 'UPI', bank: 'बँक', chequ
 // ── Format date DD/MM ────────────────────────────────────────────────────────
 const fmtDate = (d) => { const p = d.split('-'); return `${p[2]}/${p[1]}` }
 
+// ── Strong-but-typeable password: 8 chars, no ambiguous glyphs, grouped ──────
+function genPassword() {
+  const ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789'  // no 0 O 1 l i
+  const rnd = (n) => Array.from(crypto.getRandomValues(new Uint32Array(n)))
+    .map(x => ALPHABET[x % ALPHABET.length]).join('')
+  return `${rnd(4)}-${rnd(4)}`   // e.g. k7m2-p9rq
+}
+
 // ── WhatsApp bill text generator ─────────────────────────────────────────────
 function buildWhatsAppText({ customer, bill, items, dairyName }) {
   const monthLabel = `${MONTH_NAMES_MR[bill.month - 1]} ${bill.year}`
@@ -528,7 +536,7 @@ export default function CustomerProfile() {
     if (!user) { show('प्रथम क्लाउड सिंकमध्ये साइन इन करा', 'error'); return }
     if (!(await getSetting('cloud_dairy_id'))) { show('प्रथम एकदा क्लाउड सिंक करा', 'error'); return }
     setLoginMobile(customer.mobile || '')
-    setLoginPass('')
+    setLoginPass(genPassword())
     setLoginModal(true)
   }
 
@@ -1131,9 +1139,17 @@ export default function CustomerProfile() {
           </div>
           <div className="form-group">
             <label className="form-label">पासवर्ड *</label>
-            <input className="form-input" type="text" placeholder="किमान ४ अक्षरे"
-              value={loginPass} onChange={e => setLoginPass(e.target.value)} />
-            <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>हा पासवर्ड ग्राहकाला सांगा. पुन्हा तयार केल्यास पासवर्ड बदलेल.</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input className="form-input" type="text" placeholder="किमान ४ अक्षरे" style={{ flex: 1, fontFamily: 'monospace', letterSpacing: 1 }}
+                value={loginPass} onChange={e => setLoginPass(e.target.value)} />
+              <button type="button" onClick={() => setLoginPass(genPassword())} title="नवीन पासवर्ड"
+                style={{ width: 46, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--accent)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                </svg>
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>आपोआप मजबूत पासवर्ड तयार झाला. 🔄 दाबून बदला. हा ग्राहकाला सांगा.</div>
           </div>
         </div>
       </Modal>
